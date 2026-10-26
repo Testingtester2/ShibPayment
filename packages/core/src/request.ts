@@ -2,6 +2,7 @@ import { keccak256, toHex } from 'viem';
 import { getToken, type TokenSymbol } from '@shibpay/chains';
 import { percentToBps } from './amounts';
 import { validateMerchantAddress } from './merchant';
+import { validateSolanaAddress } from './solana';
 
 /** bytes32 order reference, as stored in the splitter's Paid event. */
 export function orderIdHash(orderId: string): `0x${string}` {
@@ -25,6 +26,8 @@ export function toEip681(p: { chainId: number; token: TokenSymbol; merchant: str
 export interface CheckoutConfig {
   /** Merchant's receiving address (EVM). */
   to: `0x${string}`;
+  /** Merchant's Solana wallet, to also take SHIB on Solana. */
+  sol?: string;
   /** Price, in `currency`. */
   amount: string;
   /** "USD", "EUR", "NGN"... or a token symbol to price directly in tokens. */
@@ -43,6 +46,7 @@ export interface CheckoutConfig {
 export function buildPaymentLink(base: string, c: CheckoutConfig): string {
   const u = new URL(base);
   u.searchParams.set('to', validateMerchantAddress(c.to));
+  if (c.sol) u.searchParams.set('sol', validateSolanaAddress(c.sol));
   u.searchParams.set('amount', c.amount);
   u.searchParams.set('currency', c.currency.toUpperCase());
   if (c.burnBps) u.searchParams.set('burn', String(c.burnBps / 100));
@@ -63,6 +67,7 @@ export function parsePaymentLink(url: string | URL): CheckoutConfig {
   if (returnUrl && !/^https?:\/\//i.test(returnUrl)) throw new Error('This payment link has an invalid return address.');
   return {
     to: validateMerchantAddress(q.get('to') ?? ''),
+    sol: q.get('sol') ? validateSolanaAddress(q.get('sol')!) : undefined,
     amount,
     currency,
     burnBps: percentToBps(q.get('burn') ?? '0'),

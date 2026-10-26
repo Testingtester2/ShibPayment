@@ -1,7 +1,9 @@
 {
   "name": "shibpayments",
   "private": true,
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "version": "0.1.0",
   "description": "Free, non-custodial Pay with SHIB checkout: button, payment links and an optional on-chain burn.",
   "license": "MIT",
@@ -11,17 +13,21 @@
     "packages/core",
     "packages/contracts",
     "packages/button",
-    "apps/web"
+    "apps/web",
+    "apps/woocommerce"
   ],
   "scripts": {
     "compile": "node packages/contracts/scripts/compile.mjs",
     "typecheck": "tsc --noEmit",
     "test": "npm run compile && vitest run",
-    "build": "npm run compile && npm run build -w @shibpay/button && npm run build -w @shibpay/web",
+    "build": "npm run compile && npm run build -w @shibpay/button && npm run build -w @shibpay/web && npm run build -w @shibpay/woocommerce",
     "dev": "npm run dev -w @shibpay/web"
   },
   "devDependencies": {
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
     "@types/node": "^22.20.5",
+    "fflate": "^0.8.2",
     "ganache": "^7.9.2",
     "solc": "0.8.24",
     "typescript": "^5.6.0",

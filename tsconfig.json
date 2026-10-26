@@ -35,6 +35,7 @@
     "packages/*/src",
     "packages/*/test",
     "apps/web/src",
+    "apps/woocommerce/test",
     "vitest.config.ts"
   ]
 }

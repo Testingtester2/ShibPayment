@@ -1,0 +1,12 @@
+{
+  "name": "@shibpay/woocommerce",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ShibPayment for WooCommerce: the Pay with SHIB payment method, as a WordPress plugin.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "data": "UPDATE_PLUGIN_DATA=1 vitest run --root ../.. apps/woocommerce/test/data.test.ts"
+  }
+}

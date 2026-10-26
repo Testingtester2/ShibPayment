@@ -70,3 +70,24 @@ details summary { cursor: pointer; color: var(--muted); font-size: 14px; font-we
 .tlogo { position: relative; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--grad); color: #fff; font-weight: 800; font-size: 13px; overflow: hidden; }
 .tlogo img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; background: #fff; object-fit: cover; }
 @media (max-width: 520px) { .navlink { display: none; } }
+.btn { white-space: nowrap; }
+.cta .short { display: none; }
+
+/* Phones */
+@media (max-width: 600px) {
+  .wrap { padding: 0 16px; }
+  nav { height: 64px; gap: 12px; }
+  nav .wordmark { --wm: 18px; }
+  .cta .long { display: none; }
+  .cta .short { display: inline; }
+  .btn { height: 50px; }
+  .btn.small { height: 40px; padding: 0 14px; }
+  h1 { font-size: 34px; }
+  h2 { font-size: 26px; }
+  p.lead { font-size: 16px; }
+  .card { padding: 18px; border-radius: 20px; }
+  /* 16px stops iOS zooming into the field */
+  input, select, textarea { font-size: 16px; }
+  textarea { font-size: 13px; }
+  footer { padding: 32px 16px; }
+}

@@ -22,6 +22,12 @@
     .qrwrap .qr svg { width: 100%; height: 100%; display: block; }
     .empty { padding: 40px 16px; text-align: center; color: var(--faint); border: 1px dashed var(--border); border-radius: 20px; }
     @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) {
+      .grid { padding: 16px 0 32px; gap: 16px; }
+      .qrwrap { flex-direction: column; text-align: center; }
+      .qrwrap .qr { width: 180px; height: 180px; }
+      .burnrow { grid-template-columns: 1fr 88px; }
+    }
   </style>
 </head>
 <body>
@@ -42,6 +48,11 @@
         <label class="field"><span>Your receiving wallet</span>
           <input name="to" placeholder="0x… or yourname.shib" autocomplete="off" spellcheck="false" />
           <div class="note" id="toNote">Payments go straight here. One address works on all 13 networks.</div>
+        </label>
+
+        <label class="field"><span>Your Solana wallet (optional)</span>
+          <input name="sol" placeholder="Phantom or Solflare address, to take SHIB on Solana" autocomplete="off" spellcheck="false" />
+          <div class="note" id="solNote">Leave empty if you don't use Solana.</div>
         </label>
 
         <label class="field"><span>Price</span>

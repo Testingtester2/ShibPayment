@@ -32,13 +32,18 @@
     .flame { color: var(--amber); }
     .flame svg { width: 24px; height: 24px; vertical-align: -3px; }
     @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) {
+      .grid { padding: 16px 0 32px; gap: 16px; }
+      .calc { grid-template-columns: 1fr auto 84px; }
+      .total .big { font-size: 26px; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <nav>
       <a class="wordmark" href="/"><img src="/shib-logo.png" alt="" /><span><span>Shib</span><span class="pay">Payment</span></span></a>
-      <a class="btn small cta" href="/setup.html">Payment links</a>
+      <a class="btn small cta" href="/setup.html"><span class="long">Create a payment link</span><span class="short">Create a link</span></a>
     </nav>
     <h2 style="margin-top:16px">Burn what you pledged</h2>
     <p class="muted" style="margin:0;max-width:640px">Burns only count on Ethereum. Sales paid on other networks reach you in full, so you burn your share here, in one go, whenever it suits you.</p>
