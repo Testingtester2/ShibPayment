@@ -2,7 +2,7 @@ import qrcode from 'qrcode-generator';
 import { parseUnits } from 'viem';
 import {
   BURN_CHAIN_ID, TOKEN_SYMBOLS, InsufficientBalanceError, burnMode, chainsForToken, explorerTxUrl, fetchPrices, findPayment, formatTokenAmount,
-  getChain, getToken, payWithWallet, percentToBps, poll, publicClientFor, quoteAmount,
+  getChain, getToken, payWithWallet, percentToBps, poll, publicClientFor, quoteAmount, splitBurn,
   splitterAvailable, toEip681, validateMerchantAddress, verifyPayment,
   type BurnMode, type Eip1193Provider, type PayStep, type TokenSymbol,
 } from '@shibpay/core';
@@ -58,9 +58,12 @@ function friendlyError(err: unknown, token: string, chain: string): string {
  * Fires `shibpay:paid` (bubbles, composed) with { txHash, chainId, token, amount, burnMode, burned, pledged, payer, order }.
  * On Ethereum the burn happens in the payment; elsewhere the shop is paid in full and `pledged` is theirs to burn.
  * Your server must still check the payment with verifyPayment() before shipping anything.
+ *
+ * With the `demo` attribute the checkout walks through every step but never
+ * asks a wallet for anything and sends nothing: for showing the flow on a website.
  */
 export class ShibPayElement extends HTMLElement {
-  static observedAttributes = ['to', 'amount', 'currency', 'burn', 'order', 'label', 'tokens', 'return-url', 'theme', 'splitter'];
+  static observedAttributes = ['to', 'amount', 'currency', 'burn', 'order', 'label', 'tokens', 'return-url', 'theme', 'splitter', 'demo'];
 
   private root: ShadowRoot;
   private wallets: WalletInfo[] = [];
@@ -276,6 +279,7 @@ export class ShibPayElement extends HTMLElement {
       return void this.pay(w?.provider);
     }
     if (act === 'injected') return void this.pay((window as unknown as { ethereum?: Eip1193Provider }).ethereum);
+    if (act === 'demo') return void this.demoPay();
     if (act === 'qr') return void this.showQr();
     if (act === 'back') {
       this.abort?.abort();
@@ -311,6 +315,33 @@ export class ShibPayElement extends HTMLElement {
       this.message = friendlyError(err, this.token, chain.name);
       this.render();
     }
+  }
+
+  private get demo() {
+    return this.hasAttribute('demo');
+  }
+
+  /** Plays the payment steps without touching a wallet. */
+  private async demoPay() {
+    const cfg = this.config();
+    if (typeof cfg === 'string') return;
+    const amount = this.quote(cfg);
+    if (amount === null) return;
+    this.view = 'progress';
+    for (const s of ['connecting', 'switching-chain', 'paying', 'confirming'] as PayStep[]) {
+      this.step = s;
+      this.render();
+      await new Promise((r) => setTimeout(r, 650));
+      if (!this.open || this.view !== 'progress') return;
+    }
+    const mode = this.mode(cfg);
+    const share = mode === 'none' ? 0n : splitBurn(amount, cfg.burnBps).burned;
+    this.result = {
+      hash: `0x${'0'.repeat(64)}`, chainId: this.chainId, amount, payer: '', mode,
+      burned: mode === 'in-tx' ? share : 0n, pledged: mode === 'pledge' ? share : 0n,
+    };
+    this.view = 'done';
+    this.render();
   }
 
   private async showQr() {
@@ -432,6 +463,16 @@ export class ShibPayElement extends HTMLElement {
 
     const injected = (window as unknown as { ethereum?: unknown }).ethereum;
     const touch = matchMedia('(pointer: coarse)').matches;
+    if (this.demo) {
+      return `${this.summary(cfg, amount)}
+      <div class="label">Pay with</div><div class="tokens">${tokens}</div>
+      <div class="label">Network</div>
+      <div class="net"><select name="chain" aria-label="Network">${chains.map((c) => `<option value="${c.chainId}" ${c.chainId === this.chainId ? 'selected' : ''}>${esc(c.name)}${c.chainId === 109 ? ' (lowest fees)' : ''}</option>`).join('')}</select></div>
+      <div class="label">How do you want to pay?</div>
+      <div class="wallets"><button class="wallet primary" data-act="demo" ${canPay ? '' : 'disabled'}><span class="ico">${WALLET}</span>
+        <span class="grow">ShibWallet<span class="sub">Demo: nothing is sent</span></span>${CHEVRON}</button></div>
+      <div class="foot"><span>Demo checkout</span><i class="dot"></i><span>No wallet needed</span></div>`;
+    }
     const walletRows = this.wallets.map((w, i) => `<button class="wallet ${i === 0 ? 'primary' : ''}" data-act="wallet" data-uuid="${esc(w.uuid)}" ${canPay ? '' : 'disabled'}>
         <span class="ico">${/^data:image\//.test(w.icon) ? `<img src="${esc(w.icon)}" alt="" />` : WALLET}</span>
         <span class="grow">${esc(w.name)}<span class="sub">Pay ${amount !== null ? 'now' : ''} on ${esc(chain.name)}</span></span>${CHEVRON}</button>`).join('');
@@ -472,8 +513,9 @@ export class ShibPayElement extends HTMLElement {
   private doneView(cfg: Config): string {
     const r = this.result!;
     const t = getToken(r.chainId, this.token)!;
-    return `<div class="center done">${CHECK}<div class="big" style="margin-top:12px">Payment sent</div>
-      <div class="small">${cfg.label ? `${esc(cfg.label)} has` : 'The shop has'} been paid. Thank you!</div></div>
+    const shop = cfg.label ? esc(cfg.label) : 'The shop';
+    return `<div class="center done">${CHECK}<div class="big" style="margin-top:12px">${this.demo ? 'That’s the whole checkout' : 'Payment sent'}</div>
+      <div class="small">${this.demo ? `In a real checkout, ${shop} would be paid now. This demo sent nothing.` : `${shop} has been paid. Thank you!`}</div></div>
       <div class="receipt">
         <div><span>Paid</span><span>${formatTokenAmount(r.amount, t.decimals)} ${this.token}</span></div>
         ${r.burned > 0n ? `<div><span>Burned forever</span><span style="color:var(--amber)">${formatTokenAmount(r.burned, t.decimals)} ${this.token}</span></div>` : ''}
@@ -481,7 +523,7 @@ export class ShibPayElement extends HTMLElement {
         <div><span>Network</span><span>${esc(getChain(r.chainId)!.name)}</span></div>
         <div><span>Order</span><span>${esc(cfg.order)}</span></div>
       </div>
-      <div class="center"><a class="link" href="${esc(explorerTxUrl(r.chainId, r.hash))}" target="_blank" rel="noopener">View receipt on the explorer</a></div>
+      ${this.demo ? '' : `<div class="center"><a class="link" href="${esc(explorerTxUrl(r.chainId, r.hash))}" target="_blank" rel="noopener">View receipt on the explorer</a></div>`}
       <button class="btn" data-act="return">${cfg.returnUrl ? 'Back to the shop' : 'Done'}</button>`;
   }
 
