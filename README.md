@@ -42,12 +42,14 @@ If you set a burn, open `/burn.html` once a week or month: enter what you took i
 
 <shib-pay
   to="0xYourWalletAddress"
-  amount="12.50" currency="USD"
+  amount="330" currency="ZAR"
   burn="2" order="A-1017"
-  label="Granny's Bakery"
+  label="Ryoshi's Dorado Stall"
   return-url="https://yourshop.com/thank-you">
 </shib-pay>
 ```
+
+One button covers the whole checkout: have your page fill `amount` and `order` from the cart (for example `amount="{{ cart.total }}" order="{{ order.id }}"` in a template), or update them from JavaScript with `setAttribute`, and the button picks up the change. Shops without a cart can make one button or payment link per item.
 
 | Attribute | Meaning |
 | --- | --- |
