@@ -14,16 +14,16 @@ Free, non-custodial **Pay with SHIB** for any shop. A merchant pastes their wall
 
 | Path | What it is |
 | --- | --- |
-| `packages/chains` | Chain and token registry: 13 EVM networks and 41 token deployments, copied from ShibWallet, plus the (unverified) Sunrise SHIB mint on Solana. |
+| `packages/chains` | Chain and token registry: 13 EVM networks and 41 token deployments, copied from ShibWallet, plus SHIB on Solana (bridged by Sunrise). |
 | `packages/contracts` | `ShibPaySplitter.sol`, the burn splitter, compiled with solc-js; deploy script. |
-| `packages/core` | The SDK: quotes, payment links, paying through any EIP-1193 wallet, on-chain verification, payment search. |
+| `packages/core` | The SDK: quotes, payment links, paying through any EIP-1193 wallet, on-chain verification, payment search, and Solana Pay for SHIB on Solana. |
 | `packages/button` | `<shib-pay>`, a framework-free web component built to one script, `shib-pay.js`. |
 | `apps/woocommerce` | ShibPayment for WooCommerce, the WordPress plugin. Built to `shibpayment-woocommerce.zip` on the website. |
 | `apps/web` | The website: landing page, merchant link builder (`/setup.html`), hosted payment page (`/pay.html`) and burn helper (`/burn.html`). |
 
 ## For merchants
 
-Open `/setup.html`, fill in your shop name, your receiving wallet (an address, or a `.shib` / `.eth` name), a price and an optional burn %. You get:
+Open `/setup.html`, fill in your shop name, your receiving wallet (an address, or a `.shib` / `.eth` name), a price and an optional burn %. Add a Solana wallet (Phantom, Solflare…) too if you want to take SHIB on Solana. You get:
 
 - a **payment link** and **QR code** to share in chats or print at a stall,
 - an **embed snippet** for your website.
@@ -70,12 +70,14 @@ One button covers the whole checkout: have your page fill `amount` and `order` f
 | Attribute | Meaning |
 | --- | --- |
 | `to` | Merchant's receiving address (required). |
+| `sol` | Optional Solana wallet. Adds Solana to the networks for SHIB, paid with Solana Pay. |
+| `solana-rpc` | Optional Solana RPC URL. The public one works but is rate-limited; a free Helius or QuickNode key is steadier for a busy shop. |
 | `amount`, `currency` | Price. `currency` is a fiat code (USD, EUR, NGN, INR…) converted at checkout via CoinGecko, or a token symbol (`SHIB`) to charge an exact token amount. |
 | `burn` | Percent of each sale to burn, 0 to 100 (default 0). Burned in the payment on Ethereum; a pledge on other networks. |
 | `order` | Your order reference. With a burn, it is recorded on-chain in the payment event. |
 | `label` | Shop name shown to the buyer. |
 | `tokens` | Comma list to limit tokens, e.g. `SHIB,BONE`. |
-| `return-url` | Where to send the buyer after paying; `shibpay_tx`, `shibpay_chain` and `shibpay_order` are appended. |
+| `return-url` | Where to send the buyer after paying; `shibpay_tx`, `shibpay_chain` and `shibpay_order` are appended (on Solana, `shibpay_chain=solana` and `shibpay_ref` too). |
 | `theme="dark"` | Dark trigger button instead of the orange one. |
 | `tag` | Optional 1 to 9999. Your server's code for this order, put in the amount's 3rd to 6th decimals so you can tie a plain transfer to its order. Random when left out. |
 
@@ -94,12 +96,28 @@ if (result.ok) markPaid(result.pledged); else if (result.retry) tryAgainLater();
 
 `result.pledged` is the burn you owe for that sale, so you can total it up for the burn helper.
 
+For a Solana payment (`chainId` is `"solana"` in the event), check the signature, and the checkout's `reference` from the event or `shibpay_ref`:
+
+```ts
+import { verifySolanaPayment } from '@shibpay/core';
+
+const result = await verifySolanaPayment({ url: 'https://your-solana-rpc' }, signature, {
+  recipient: 'YourSolanaWallet', amount: expectedAmount, reference, burnBps: 200, // amount in the token's smallest units
+});
+if (result.ok) markPaid(result.pledged); else reject(result.reason);
+```
+
+It waits for `finalized` by default, about 13 seconds after the payment, after which it can't be rolled back. `findSolanaPayment(rpc, reference)` finds a payment for a reference if you only have that.
+
 ## How a payment works
 
 - **Plain transfer** (no burn, or any network other than Ethereum): one ordinary token transfer from buyer to merchant. No contract is involved. A plain transfer carries no order number, so each quote gets a unique amount (a tag in the 3rd to 6th decimals), which lets `findPayment()` match QR payments to their order.
 - **Burn on Ethereum**: the buyer approves the exact amount, then calls `ShibPaySplitter.pay()`, which sends the burn share to `0x000000000000000000000000000000000000dEaD` and the rest to the merchant in one transaction, and emits `Paid(orderId, payer, merchant, token, amount, burned)`.
 - **Burn pledge** (other networks): burning a bridged copy of SHIB on Base or Shibarium doesn't reduce supply, because the original stays locked in the bridge on Ethereum, and burn trackers only count Ethereum. So the merchant is paid in full, and the checkout shows the shop's pledge. The merchant settles it with `burnOnEthereum()` (the burn helper page), a plain transfer to `0x…dEaD` on Ethereum. No contract is needed on any other chain.
+- **SHIB on Solana**: a [Solana Pay](https://docs.solanapay.com/spec) transfer of Sunrise's SHIB to the merchant's Solana wallet, carrying a random `reference` key per checkout so the payment can be found and tied to its order without a unique amount. Buyers pay from Phantom, Solflare or any Solana wallet in the browser, or tap or scan the `solana:` link on a phone. The checkout creates the merchant's SHIB account if it has none (the buyer pays its rent, about 0.002 SOL). Burns are always a pledge here, because only Ethereum burns count. The SDK builds this transaction itself, without a Solana library, and the tests check it against `@solana/web3.js` and `@solana/spl-token`.
 - Before asking the wallet to sign, the SDK checks the buyer's balance, so a buyer who can't afford it never pays gas for a failed transaction.
+
+![SHIB on Solana: Solana Pay QR](docs/screenshots/solana-qr.png)
 
 ### ShibPaySplitter
 
@@ -124,8 +142,9 @@ The contract has not had an external audit yet.
 | Shibarium | ✓ | ✓ (native gas coin) | ✓ | ✓ |
 | Ethereum | ✓ | ✓ | ✓ | ✓ |
 | BNB Chain, Arbitrum One, OP Mainnet, Base, Polygon, Scroll, Linea, Celo, Gnosis, Mantle, Avalanche | ✓ | ✓ | ✓ | not deployed |
+| Solana (Sunrise) | ✓ | | | |
 
-Addresses come from ShibWallet's `src/lib/tokens.ts`, which verified each against the Chainlink CCIP directory, shib.io and an on-chain `symbol()` call. Impostor tokens with the same names exist, so payments are only ever matched by address. SHIB on Solana (bridged by Sunrise) is listed in the registry but switched off until its mint is verified on-chain; the Solana Pay track is the next phase.
+Addresses come from ShibWallet's `src/lib/tokens.ts`, which verified each against the Chainlink CCIP directory, shib.io and an on-chain `symbol()` call. Impostor tokens with the same names exist, so payments are only ever matched by address. SHIB on Solana is `shib5gSoVKPjwkXrxRk7SbQFzb2R9rQB3TgQWYX4RwW`, copied from Sunrise's SHIB page on sunrise.xyz (the source Sunrise's docs say to trust) and matching Jupiter, Solscan and tokens.xyz. Its decimals are read from the chain at payment time. At least seven other Solana tokens call themselves SHIB, shibwifhat among them, so Solana payments are matched by mint too.
 
 ## Development
 
@@ -145,7 +164,7 @@ The site is a static build. `vercel.json` sets everything for Vercel: import the
 
 ## Roadmap
 
-1. **Now:** button, payment links, link builder, burn helper, Ethereum burn splitter, WooCommerce plugin, 13 EVM networks.
+1. **Now:** button, payment links, link builder, burn helper, Ethereum burn splitter, WooCommerce plugin, 13 EVM networks, SHIB on Solana.
 2. **Next:** deploy the splitter on Ethereum, ShibWallet opening payment links directly, bridge-then-burn in one tap once ShibWallet's CCIP sending is wired up.
-3. **Then:** Solana via Solana Pay (SHIB bridged by Sunrise), WalletConnect, more shop platforms.
+3. **Then:** Solana in the WooCommerce plugin, WalletConnect, more shop platforms.
 4. **Later:** supply-chain provenance on Shibarium.

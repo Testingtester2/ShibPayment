@@ -2,7 +2,7 @@ import qrcode from 'qrcode-generator';
 import { getEnsAddress } from 'viem/actions';
 import { normalize } from 'viem/ens';
 import {
-  buildPaymentLink, isShibName, percentToBps, publicClientFor, resolveShibName, validateMerchantAddress,
+  buildPaymentLink, isShibName, percentToBps, publicClientFor, resolveShibName, validateMerchantAddress, validateSolanaAddress,
 } from '@shibpay/core';
 import '@shibpay/button';
 
@@ -67,6 +67,26 @@ async function receiving(): Promise<`0x${string}` | null> {
   return address;
 }
 
+/** Optional Solana wallet: undefined when empty, null when invalid. */
+function solana(): string | undefined | null {
+  const input = field('sol').value.trim();
+  if (!input) {
+    field('sol').removeAttribute('aria-invalid');
+    note($('solNote'), "Leave empty if you don't use Solana.");
+    return undefined;
+  }
+  try {
+    const a = validateSolanaAddress(input);
+    field('sol').removeAttribute('aria-invalid');
+    note($('solNote'), 'Looks good. Buyers can now pay SHIB on Solana too.', 'ok');
+    return a;
+  } catch (e) {
+    field('sol').setAttribute('aria-invalid', 'true');
+    note($('solNote'), (e as Error).message, 'bad');
+    return null;
+  }
+}
+
 function burnBps(): number | null {
   try {
     const bps = percentToBps(field('burn').value || '0');
@@ -86,18 +106,20 @@ function burnBps(): number | null {
 async function update() {
   const to = await receiving();
   const bps = burnBps();
+  const sol = solana();
   const amount = field('amount').value.trim().replace(',', '.');
   const okAmount = /^\d+(\.\d+)?$/.test(amount) && Number(amount) > 0;
   const returnUrl = field('returnUrl').value.trim();
   const okReturn = !returnUrl || /^https?:\/\//i.test(returnUrl);
-  if (!to || bps === null || !okAmount || !okReturn) {
+  if (!to || bps === null || sol === null || !okAmount || !okReturn) {
     $('empty').hidden = false;
     $('result').hidden = true;
-    $('empty').textContent = !okReturn ? 'The return address must start with https://' : 'Add your wallet and a price to see your payment link.';
+    $('empty').textContent = !okReturn ? 'The return address must start with https://'
+      : sol === null ? 'Check your Solana address, or leave it empty.' : 'Add your wallet and a price to see your payment link.';
     return;
   }
   const cfg = {
-    to, amount, currency: (form.elements.namedItem('currency') as HTMLSelectElement).value, burnBps: bps,
+    to, sol, amount, currency: (form.elements.namedItem('currency') as HTMLSelectElement).value, burnBps: bps,
     order: field('order').value.trim() || undefined, label: field('label').value.trim() || undefined, returnUrl: returnUrl || undefined,
   };
   const link = buildPaymentLink(`${location.origin}/pay.html`, cfg);
@@ -110,7 +132,7 @@ async function update() {
   $('qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
 
   const attrs: [string, string | undefined][] = [
-    ['to', cfg.to], ['amount', cfg.amount], ['currency', cfg.currency], ['burn', bps ? String(bps / 100) : undefined],
+    ['to', cfg.to], ['sol', cfg.sol], ['amount', cfg.amount], ['currency', cfg.currency], ['burn', bps ? String(bps / 100) : undefined],
     ['order', cfg.order], ['label', cfg.label], ['return-url', cfg.returnUrl],
   ];
   const attrText = attrs.filter(([, v]) => v !== undefined).map(([k, v]) => `  ${k}="${v!.replace(/"/g, '&quot;')}"`).join('\n');

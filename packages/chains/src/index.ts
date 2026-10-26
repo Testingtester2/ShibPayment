@@ -233,16 +233,17 @@ export const EVM_CHAINS: EvmChain[] = [
 ];
 
 /**
- * SHIB on Solana, bridged from Ethereum by Sunrise (not CCIP). The mint comes
- * from Sunrise's launch announcement on 4 October 2026 as reported by Solana
- * Compass and CryptoTicker; it is NOT yet verified on-chain and its decimals
- * are unconfirmed, so nothing in the SDK uses it until `verified` is true.
- * At least seven other Solana tokens use the SHIB ticker.
+ * SHIB on Solana, bridged from Ethereum by Sunrise (Wormhole Labs), launched
+ * 4 October 2026. The mint was copied from Sunrise's SHIB page on sunrise.xyz,
+ * which Sunrise's docs name as the source to trust, and matches Jupiter,
+ * Solscan and tokens.xyz. Decimals are read from the chain at payment time,
+ * never assumed. At least seven other Solana tokens use the SHIB ticker,
+ * shibwifhat (F6qoef…5J1k) among them, so payments are matched by mint only.
  */
 export const SOLANA_SHIB = {
   mint: 'shib5gSoVKPjwkXrxRk7SbQFzb2R9rQB3TgQWYX4RwW',
   bridge: 'Sunrise',
-  verified: false,
+  verified: true,
 } as const;
 
 export function getChain(chainId: number): EvmChain | undefined {

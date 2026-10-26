@@ -22,6 +22,7 @@ try {
   const cfg = parsePaymentLink(location.href);
   const btn = document.createElement('shib-pay');
   btn.setAttribute('to', cfg.to);
+  if (cfg.sol) btn.setAttribute('sol', cfg.sol);
   btn.setAttribute('amount', cfg.amount);
   btn.setAttribute('currency', cfg.currency);
   if (cfg.burnBps) btn.setAttribute('burn', String(cfg.burnBps / 100));

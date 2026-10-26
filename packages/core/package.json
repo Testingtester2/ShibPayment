@@ -7,6 +7,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
+    "@noble/curves": "^1.9.7",
+    "@noble/hashes": "^1.8.0",
     "@shibpay/chains": "0.1.0",
     "@shibpay/contracts": "0.1.0",
     "viem": "^2.57.11"
