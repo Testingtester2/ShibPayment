@@ -1,5 +1,5 @@
 import qrcode from 'qrcode-generator';
-import { parseUnits } from 'viem';
+import { formatUnits, parseUnits } from 'viem';
 import {
   BURN_CHAIN_ID, TOKEN_SYMBOLS, InsufficientBalanceError, burnMode, chainsForToken, explorerTxUrl, fetchPrices, findPayment, formatTokenAmount,
   getChain, getToken, payWithWallet, percentToBps, poll, publicClientFor, quoteAmount, splitBurn,
@@ -35,6 +35,9 @@ interface Config {
 interface Paid { hash: string; chainId: number; amount: bigint; payer: string; mode: BurnMode; burned: bigint; pledged: bigint; solana?: boolean }
 
 const QUOTE_MS = 15 * 60_000;
+
+/** Opens ShibWallet when it's installed; otherwise a page offering the app, or paying in the browser. */
+const SHIBWALLET_PAY = 'https://shibwallet.shibfun.app/pay';
 
 // shib-pay-walletconnect.js sits next to this script; it is large, so it is fetched only when used.
 const SCRIPT_SRC = (typeof document !== 'undefined' && (document.currentScript as HTMLScriptElement | null)?.src) || 'https://shibpayments.shibfun.app/shib-pay.js';
@@ -99,6 +102,8 @@ export class ShibPayElement extends HTMLElement {
   private priceState: 'idle' | 'loading' | 'ok' | 'error' = 'idle';
   private quotedAt = 0;
   private tag = 0n;
+  /** Order id when the shop sets none: fixed per checkout, so a payment made elsewhere (ShibWallet) can be matched. */
+  private autoOrder = `shibpay-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   private splitterOk = new Map<number, boolean>();
   private step: PayStep | null = null;
   /** Steps this payment has gone through, so the progress dots match what the wallet actually asked. */
@@ -200,7 +205,7 @@ export class ShibPayElement extends HTMLElement {
       return {
         to, amount, currency,
         burnBps: percentToBps(this.getAttribute('burn') ?? '0'),
-        order: this.getAttribute('order') || `shibpay-${Date.now().toString(36)}`,
+        order: this.getAttribute('order') || this.autoOrder,
         label: this.getAttribute('label') ?? '',
         tokens,
         returnUrl,
@@ -348,7 +353,6 @@ export class ShibPayElement extends HTMLElement {
     if (act === 'injected') return void this.pay((window as unknown as { ethereum?: Eip1193Provider }).ethereum);
     if (act === 'walletconnect') return void this.payWalletConnect();
     if (act === 'demo') return void this.demoPay();
-    if (act === 'copy') return void this.copyLink();
     if (act === 'qr') return void this.showQr();
     if (act === 'back') {
       this.abort?.abort();
@@ -446,22 +450,6 @@ export class ShibPayElement extends HTMLElement {
     }
   }
 
-  private copied = false;
-
-  private async copyLink() {
-    try {
-      await navigator.clipboard.writeText(location.href);
-      this.copied = true;
-    } catch {
-      window.prompt('Copy this link', location.href);
-    }
-    this.render();
-    setTimeout(() => {
-      this.copied = false;
-      if (this.view === 'qr') this.render();
-    }, 2500);
-  }
-
   private get demo() {
     return this.hasAttribute('demo');
   }
@@ -497,9 +485,11 @@ export class ShibPayElement extends HTMLElement {
     const amount = this.quote(cfg);
     if (this.solana) return void this.watchSolana(cfg, amount);
     const token = getToken(this.chainId, this.token);
-    if (this.mode(cfg) === 'in-tx' || !token || token.native || amount === null) return;
+    if (!token || token.native || amount === null) return;
+    // A burn-in-payment order is only paid from here via ShibWallet's link, which is offered on phones.
+    if (this.mode(cfg) === 'in-tx' && !matchMedia('(pointer: coarse)').matches) return;
 
-    // A plain transfer: watch the chain for this order's unique amount.
+    // Watch the chain for this order: its Paid event (burn in the payment) or its unique amount (plain transfer).
     this.abort?.abort();
     const abort = (this.abort = new AbortController());
     const client = publicClientFor(this.chainId);
@@ -717,6 +707,20 @@ export class ShibPayElement extends HTMLElement {
       <button class="btn" data-act="back">Try again</button>`;
   }
 
+  /** ShibWallet's pay link for exactly this checkout: the quoted (tagged) amount in the token, on this network, for this order. */
+  private shibWalletLink(cfg: Config, amount: bigint): string {
+    const u = new URL(SHIBWALLET_PAY);
+    u.searchParams.set('to', cfg.to);
+    u.searchParams.set('amount', formatUnits(amount, getToken(this.chainId, this.token)!.decimals));
+    u.searchParams.set('currency', this.token);
+    u.searchParams.set('chain', String(this.chainId));
+    if (cfg.burnBps) u.searchParams.set('burn', String(cfg.burnBps / 100));
+    if (cfg.label) u.searchParams.set('label', cfg.label);
+    u.searchParams.set('order', cfg.order);
+    if (cfg.returnUrl) u.searchParams.set('return', cfg.returnUrl);
+    return u.toString();
+  }
+
   private qrView(cfg: Config): string {
     if (this.solana) return this.solanaQrView(cfg);
     const amount = this.quote(cfg);
@@ -737,15 +741,14 @@ export class ShibPayElement extends HTMLElement {
       const metamask = `https://metamask.app.link/dapp/${location.host}${location.pathname}${location.search}`;
       const trust = `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(here)}`;
       return `${this.summary(cfg, amount)}
-        ${direct ? `<a class="btn" href="${esc(data)}">Open in my wallet app</a><div class="small center" style="margin-top:8px">${exact}</div>` : ''}
-        <div class="label">${direct ? 'Or open this checkout in' : 'Open this checkout in'}</div>
+        ${amount !== null ? `<a class="btn" href="${esc(this.shibWalletLink(cfg, amount))}">Pay with ShibWallet</a>` : ''}
+        ${direct ? `<div class="small center" style="margin-top:8px">${exact}</div><a class="btn ghost" href="${esc(data)}">Open in another wallet app</a>` : ''}
+        <div class="label">Or open this checkout in</div>
         <div class="apps">
           <a class="btn ghost" href="${esc(metamask)}">MetaMask</a>
           <a class="btn ghost" href="${esc(trust)}">Trust Wallet</a>
         </div>
-        <button class="btn ghost" data-act="copy">${this.copied ? 'Link copied' : 'Copy link for ShibWallet'}</button>
-        <div class="small center" style="margin-top:8px">In ShibWallet, paste it into the dApp browser and tap Pay there.</div>
-        ${waiting}
+        ${amount !== null && !token.native ? '<div class="pulse">Waiting for your payment…</div>' : ''}
         <details class="other"><summary>Paying from another phone? Show QR</summary>
           <div class="qr">${svg}<img src="${shibLogo}" alt="" /></div></details>
         <button class="btn ghost" data-act="back">Back</button>`;
