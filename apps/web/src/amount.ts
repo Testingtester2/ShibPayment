@@ -5,7 +5,10 @@
  * Returns a plain decimal string ("10000", "12.5") or null.
  */
 export function parsePrice(raw: string): string | null {
-  const s = raw.replace(/[\s'_  ]/g, '');
+  // Spaces, apostrophes and underscores only ever group thousands: check the groups before dropping them.
+  const spaced = raw.trim();
+  if (/[\s'_]/.test(spaced) && !/^\d{1,3}([\s'_]\d{3})+([.,]\d+)?$/.test(spaced)) return null;
+  const s = spaced.replace(/[\s'_]/g, '');
   if (!/^\d[\d.,]*$/.test(s) || /[.,]$/.test(s)) return null;
   const seps = s.match(/[.,]/g) ?? [];
   let int = s, frac = '';

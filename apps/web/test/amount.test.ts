@@ -9,6 +9,8 @@ describe('parsePrice', () => {
     expect(parsePrice('10,00,000')).toBe('1000000');
     expect(parsePrice('1,234.56')).toBe('1234.56');
     expect(parsePrice('1.234,56')).toBe('1234.56');
+    expect(parsePrice('1 234,56')).toBe('1234.56');
+    expect(parsePrice(' 330 ')).toBe('330');
   });
 
   it('reads decimals', () => {
@@ -19,7 +21,7 @@ describe('parsePrice', () => {
   });
 
   it('rejects what it cannot read', () => {
-    for (const s of ['', '0', '0,00', 'abc', '1,2,3', '1,00,00', '1.234.5', '12.', '-5', '1,234,56.7.8']) expect(parsePrice(s)).toBeNull();
+    for (const s of ['', '0', '0,00', 'abc', '1,2,3', '1,00,00', '1 2', "1'2", '10 00', '1_2345', '1.234.5', '12.', '-5', '1,234,56.7.8']) expect(parsePrice(s)).toBeNull();
   });
 
   it('groups digits for display', () => {
