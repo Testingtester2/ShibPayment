@@ -5,6 +5,7 @@ import {
   buildPaymentLink, isShibName, percentToBps, publicClientFor, resolveShibName, validateMerchantAddress, validateSolanaAddress,
 } from '@shibpay/core';
 import '@shibpay/button';
+import { groupDigits, parsePrice } from './amount';
 
 const form = document.getElementById('form') as HTMLFormElement;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -103,12 +104,24 @@ function burnBps(): number | null {
   }
 }
 
+/** The price as a plain number, with the exact amount echoed back so a misread can't slip through. */
+function price(): string | null {
+  const raw = field('amount').value.trim();
+  const currency = (form.elements.namedItem('currency') as HTMLSelectElement).value;
+  const amount = parsePrice(raw);
+  if (!raw) note($('amountNote'), '');
+  else if (amount === null) note($('amountNote'), 'Enter a price like 12.50 or 10,000.', 'bad');
+  else if (currency === 'SHIB' || currency === 'BONE') note($('amountNote'), `Buyers pay exactly ${groupDigits(amount)} ${currency}.`, 'ok');
+  else note($('amountNote'), `Buyers pay ${groupDigits(amount)} ${currency}, in SHIB, BONE, LEASH or TREAT at the live price.`, 'ok');
+  return amount;
+}
+
 async function update() {
   const to = await receiving();
   const bps = burnBps();
   const sol = solana();
-  const amount = field('amount').value.trim().replace(',', '.');
-  const okAmount = /^\d+(\.\d+)?$/.test(amount) && Number(amount) > 0;
+  const amount = price();
+  const okAmount = amount !== null;
   const returnUrl = field('returnUrl').value.trim();
   const okReturn = !returnUrl || /^https?:\/\//i.test(returnUrl);
   if (!to || bps === null || sol === null || !okAmount || !okReturn) {
@@ -119,7 +132,7 @@ async function update() {
     return;
   }
   const cfg = {
-    to, sol, amount, currency: (form.elements.namedItem('currency') as HTMLSelectElement).value, burnBps: bps,
+    to, sol, amount: amount!, currency: (form.elements.namedItem('currency') as HTMLSelectElement).value, burnBps: bps,
     order: field('order').value.trim() || undefined, label: field('label').value.trim() || undefined, returnUrl: returnUrl || undefined,
   };
   const link = buildPaymentLink(`${location.origin}/pay.html`, cfg);

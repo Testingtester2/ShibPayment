@@ -6,20 +6,26 @@ const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const pkg = (name: string) => here(`../../packages/${name}/src/index.ts`);
 
 // Serve and ship the standalone button script at /shib-pay.js, so the embed
-// snippet the link builder hands out works from this same site.
+// snippet the link builder hands out works from this same site. WalletConnect
+// support is a separate, larger file the button fetches only when used.
 function buttonScript(): Plugin {
-  const file = here('../../packages/button/dist/shib-pay.js');
+  const files = ['shib-pay.js', 'shib-pay-walletconnect.js'];
+  const path = (f: string) => here(`../../packages/button/dist/${f}`);
   return {
     name: 'shib-pay-script',
     configureServer(server) {
-      server.middlewares.use('/shib-pay.js', (_req, res) => {
-        res.setHeader('content-type', 'text/javascript');
-        res.end(fs.existsSync(file) ? fs.readFileSync(file) : '// run: npm run build -w @shibpay/button');
-      });
+      for (const f of files) {
+        server.middlewares.use(`/${f}`, (_req, res) => {
+          res.setHeader('content-type', 'text/javascript');
+          res.end(fs.existsSync(path(f)) ? fs.readFileSync(path(f)) : '// run: npm run build -w @shibpay/button');
+        });
+      }
     },
     generateBundle() {
-      if (!fs.existsSync(file)) this.error('Build the button first: npm run build -w @shibpay/button');
-      this.emitFile({ type: 'asset', fileName: 'shib-pay.js', source: fs.readFileSync(file) });
+      for (const f of files) {
+        if (!fs.existsSync(path(f))) this.error('Build the button first: npm run build -w @shibpay/button');
+        this.emitFile({ type: 'asset', fileName: f, source: fs.readFileSync(path(f)) });
+      }
     },
   };
 }
