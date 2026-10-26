@@ -86,6 +86,8 @@ export class ShibPayElement extends HTMLElement {
   private tag = 0n;
   private splitterOk = new Map<number, boolean>();
   private step: PayStep | null = null;
+  /** Steps this payment has gone through, so the progress dots match what the wallet actually asked. */
+  private seen = new Set<PayStep>();
   private message = '';
   private result: Paid | null = null;
   private abort: AbortController | null = null;
@@ -363,6 +365,7 @@ export class ShibPayElement extends HTMLElement {
     const chain = getChain(this.chainId)!;
     this.view = 'progress';
     this.step = 'connecting';
+    this.seen.clear();
     this.render();
     try {
       const res = await payWithWallet({
@@ -370,6 +373,7 @@ export class ShibPayElement extends HTMLElement {
         orderId: cfg.order, splitter: cfg.splitter,
         onStep: (s) => {
           this.step = s;
+          this.seen.add(s);
           this.render();
         },
       });
@@ -631,16 +635,19 @@ export class ShibPayElement extends HTMLElement {
   }
 
   private progressView(cfg: Config): string {
-    const twoSteps = !this.solana && this.mode(cfg) === 'in-tx';
+    // In-transaction burns need an approval first, unless the wallet bundled it with the payment.
+    const bundled = this.seen.has('approve-and-pay');
+    const twoSteps = !this.solana && this.mode(cfg) === 'in-tx' && !bundled && (this.seen.has('approving') || this.step === 'connecting' || this.step === 'switching-chain');
     const text: Record<PayStep, [string, string]> = {
       'connecting': ['Connect your wallet', 'Approve the connection in your wallet.'],
       'switching-chain': [`Switch to ${this.networkName()}`, 'Your wallet may ask to change network.'],
       'approving': [`Allow ${this.token} (step 1 of 2)`, `This lets the payment move exactly this amount of ${this.token}, nothing more.`],
       'paying': [twoSteps ? 'Confirm payment (step 2 of 2)' : 'Confirm payment', 'Check the amount in your wallet and confirm.'],
+      'approve-and-pay': ['Confirm payment', `One confirmation allows exactly this amount of ${this.token} and pays. Check it in your wallet.`],
       'confirming': ['Sending…', 'Waiting for the network to confirm. This usually takes a few seconds.'],
     };
     const [big, small] = text[this.step ?? 'connecting'];
-    const order: PayStep[] = ['connecting', ...(this.solana ? [] : ['switching-chain' as const]), ...(twoSteps ? ['approving' as const] : []), 'paying', 'confirming'];
+    const order: PayStep[] = ['connecting', ...(this.solana ? [] : ['switching-chain' as const]), ...(twoSteps ? ['approving' as const] : []), bundled ? 'approve-and-pay' : 'paying', 'confirming'];
     const idx = order.indexOf(this.step ?? 'connecting');
     return `<div class="center"><div class="spinner" role="status" aria-label="Working"></div>
       <div class="big">${esc(big)}</div><div class="small">${esc(small)}</div>

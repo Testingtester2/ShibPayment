@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, custom, getAddress, type TransactionReceipt } from 'viem';
+import { createPublicClient, createWalletClient, custom, encodeFunctionData, getAddress, numberToHex, type TransactionReceipt } from 'viem';
 import { BURN_ADDRESS, BURN_CHAIN_ID, getChain, getToken, type TokenSymbol } from '@shibpay/chains';
 import { SPLITTER_ADDRESS, splitterAbi } from '@shibpay/contracts';
 import { erc20Abi } from './abi';
@@ -12,7 +12,8 @@ export interface Eip1193Provider {
   request(args: { method: string; params?: unknown }): Promise<unknown>;
 }
 
-export type PayStep = 'connecting' | 'switching-chain' | 'approving' | 'paying' | 'confirming';
+/** `approve-and-pay`: the wallet bundles the approval and the payment into one confirmation (EIP-5792). */
+export type PayStep = 'connecting' | 'switching-chain' | 'approving' | 'paying' | 'approve-and-pay' | 'confirming';
 
 export interface PayParams {
   provider: Eip1193Provider;
@@ -92,7 +93,8 @@ export async function ensureChain(provider: Eip1193Provider, chainId: number): P
  * ordinary transfer straight to the merchant. With one (Ethereum only) it goes
  * through ShibPaySplitter: an exact-amount approval (skipped when already
  * approved), then one pay() call that sends the burn share to 0x...dEaD and
- * the rest to the merchant.
+ * the rest to the merchant. Wallets that can bundle calls atomically (EIP-5792:
+ * MetaMask smart accounts, Coinbase Wallet…) get both in one confirmation.
  */
 export async function payWithWallet(p: PayParams): Promise<PayResult> {
   const chain = getChain(p.chainId);
@@ -120,19 +122,30 @@ export async function payWithWallet(p: PayParams): Promise<PayResult> {
     const allowance = await pub.readContract({
       address: token.address, abi: erc20Abi, functionName: 'allowance', args: [payer, splitter],
     });
-    if (allowance < p.amount) {
+    const payData = encodeFunctionData({
+      abi: splitterAbi, functionName: 'pay', args: [token.address, merchant, p.amount, p.burnBps, orderIdHash(p.orderId)],
+    });
+    const batched = allowance < p.amount
+      ? await sendAtomicBatch(p.provider, p.chainId, payer, [
+        { to: token.address, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [splitter, p.amount] }) },
+        { to: splitter, data: payData },
+      ], () => p.onStep?.('approve-and-pay'))
+      : null;
+    if (batched) {
+      hash = batched;
+    } else if (allowance < p.amount) {
       p.onStep?.('approving');
       const approveHash = await wallet.writeContract({
         address: token.address, abi: erc20Abi, functionName: 'approve', args: [splitter, p.amount],
       });
       const r = await pub.waitForTransactionReceipt({ hash: approveHash });
       if (r.status !== 'success') throw new Error('The approval did not go through.');
+      p.onStep?.('paying');
+      hash = await wallet.sendTransaction({ to: splitter, data: payData });
+    } else {
+      p.onStep?.('paying');
+      hash = await wallet.sendTransaction({ to: splitter, data: payData });
     }
-    p.onStep?.('paying');
-    hash = await wallet.writeContract({
-      address: splitter, abi: splitterAbi, functionName: 'pay',
-      args: [token.address, merchant, p.amount, p.burnBps, orderIdHash(p.orderId)],
-    });
   } else {
     p.onStep?.('paying');
     hash = await transfer(wallet, token, merchant, p.amount);
@@ -146,6 +159,54 @@ export async function payWithWallet(p: PayParams): Promise<PayResult> {
     burned: mode === 'in-tx' ? share : 0n,
     pledged: mode === 'pledge' ? share : 0n,
   };
+}
+
+interface Call { to: `0x${string}`; data: `0x${string}` }
+
+/**
+ * Sends `calls` as one atomic EIP-5792 batch when the wallet says it can, and
+ * returns the hash of the transaction that carried the last call. Returns null
+ * when the wallet can't batch (or doesn't speak EIP-5792), so the caller falls
+ * back to separate transactions. Errors after the wallet accepted the batch,
+ * such as the buyer rejecting it, are thrown, never retried as two steps.
+ */
+export async function sendAtomicBatch(
+  provider: Eip1193Provider, chainId: number, from: `0x${string}`, calls: Call[], onSend?: () => void,
+): Promise<`0x${string}` | null> {
+  const hexId = numberToHex(chainId);
+  let caps: Record<string, { atomic?: { status?: string }; atomicBatch?: { supported?: boolean } }>;
+  try {
+    caps = (await provider.request({ method: 'wallet_getCapabilities', params: [from, [hexId]] })) as typeof caps;
+  } catch {
+    return null;
+  }
+  const c = caps?.[hexId] ?? caps?.[String(chainId)];
+  // v2 of the spec says atomic.status "supported" or "ready" (the wallet upgrades the account first); v1 said atomicBatch.supported.
+  const ok = c?.atomic?.status === 'supported' || c?.atomic?.status === 'ready' || c?.atomicBatch?.supported === true;
+  if (!ok) return null;
+
+  onSend?.();
+  const sent = (await provider.request({
+    method: 'wallet_sendCalls',
+    params: [{ version: '2.0.0', chainId: hexId, from, atomicRequired: true, calls: calls.map((x) => ({ ...x, value: '0x0' })) }],
+  })) as string | { id: string };
+  const id = typeof sent === 'string' ? sent : sent.id;
+
+  for (let i = 0; i < 300; i++) {
+    const st = (await provider.request({ method: 'wallet_getCallsStatus', params: [id] })) as {
+      status: number | string; receipts?: { transactionHash: `0x${string}`; status: string }[];
+    };
+    const done = st.status === 200 || st.status === 'CONFIRMED';
+    const failed = typeof st.status === 'number' && st.status >= 400;
+    if (failed) throw new Error('The payment did not go through. No money was moved.');
+    if (done) {
+      const last = st.receipts?.[st.receipts.length - 1];
+      if (!last) throw new Error('The wallet did not report the payment transaction.');
+      return last.transactionHash;
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new Error('The wallet has not confirmed the payment yet. Check your wallet before trying again.');
 }
 
 export interface BurnParams {

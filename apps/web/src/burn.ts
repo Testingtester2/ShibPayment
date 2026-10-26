@@ -92,6 +92,7 @@ const STEP_TEXT: Record<PayStep, string> = {
   'switching-chain': `Switch your wallet to ${chain.name}…`,
   'approving': '',
   'paying': 'Check the amount in your wallet and confirm…',
+  'approve-and-pay': '',
   'confirming': 'Burning… waiting for Ethereum to confirm.',
 };
 

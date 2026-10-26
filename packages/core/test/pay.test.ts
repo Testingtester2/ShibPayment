@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { parseEther } from 'viem';
 import { BURN_ADDRESS } from '@shibpay/chains';
-import { burnOnEthereum, findPayment, payWithWallet, verifyPayment, type PayStep } from '../src';
+import { burnOnEthereum, findPayment, payWithWallet, verifyPayment, type Eip1193Provider, type PayStep } from '../src';
 import { startChain } from './ganache';
 
 type Chain = Awaited<ReturnType<typeof startChain>>;
@@ -39,6 +39,48 @@ describe('Ethereum: the burn happens in the payment (in-process EVM posing as Et
 
     expect(await findPayment({ client: c.pub, chainId: 1, token: 'SHIB', merchant: c.merchant, amount: 1n, orderId: 'order-1', fromBlock: 0n }))
       .toBe(res.hash);
+  });
+
+  it('bundles approve and pay into one confirmation when the wallet can (EIP-5792)', async () => {
+    const sent: { calls: number; atomicRequired: boolean }[] = [];
+    let hashes: string[] = [];
+    let reject = false;
+    // A wallet that batches: it runs the calls in order and reports their receipts.
+    const batching: Eip1193Provider = {
+      request: async ({ method, params }) => {
+        if (method === 'wallet_getCapabilities') return { '0x1': { atomic: { status: 'supported' } } };
+        if (method === 'wallet_sendCalls') {
+          if (reject) throw Object.assign(new Error('User rejected the request.'), { code: 4001 });
+          const [{ calls, from, atomicRequired }] = params as [{ calls: { to: string; data: string }[]; from: string; atomicRequired: boolean }];
+          sent.push({ calls: calls.length, atomicRequired });
+          hashes = [];
+          for (const call of calls) hashes.push((await c.provider.request({ method: 'eth_sendTransaction', params: [{ from, to: call.to, data: call.data }] })) as string);
+          return { id: 'batch-1' };
+        }
+        if (method === 'wallet_getCallsStatus') return { status: 200, receipts: hashes.map((transactionHash) => ({ transactionHash, status: '0x1' })) };
+        return c.provider.request({ method, params });
+      },
+    };
+
+    const steps: PayStep[] = [];
+    const m0 = await c.balance(c.merchant);
+    const res = await payWithWallet({
+      provider: batching, chainId: 1, token: 'SHIB', merchant: c.merchant,
+      amount: parseEther('1000'), burnBps: 200, orderId: 'order-batch', onStep: (s) => steps.push(s),
+    });
+    expect(steps).toEqual(['connecting', 'switching-chain', 'approve-and-pay', 'confirming']);
+    expect(sent).toEqual([{ calls: 2, atomicRequired: true }]);
+    expect(await c.balance(c.merchant) - m0).toBe(parseEther('980'));
+    await c.mine();
+    expect(await verifyPayment(c.pub, res.hash, {
+      chainId: 1, token: 'SHIB', merchant: c.merchant, amount: parseEther('1000'), burnBps: 200, orderId: 'order-batch',
+    })).toMatchObject({ ok: true, viaSplitter: true, burned: parseEther('20') });
+
+    // Cancelling the bundle cancels the payment: no fallback to two separate steps.
+    reject = true;
+    await expect(payWithWallet({
+      provider: batching, chainId: 1, token: 'SHIB', merchant: c.merchant, amount: parseEther('1000'), burnBps: 200, orderId: 'order-batch-2',
+    })).rejects.toMatchObject({ code: 4001 });
   });
 
   it('pays with no burn as one plain transfer (no approval, no contract)', async () => {
