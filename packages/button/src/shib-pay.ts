@@ -4,7 +4,7 @@ import {
   BURN_CHAIN_ID, TOKEN_SYMBOLS, InsufficientBalanceError, burnMode, chainsForToken, explorerTxUrl, fetchPrices, findPayment, formatTokenAmount,
   getChain, getToken, payWithWallet, percentToBps, poll, publicClientFor, quoteAmount, splitBurn,
   splitterAvailable, toEip681, validateMerchantAddress, verifyPayment,
-  findSolanaPayment, getMintInfo, newReference, payWithSolanaWallet, solanaTxUrl, toSolanaPayUrl, validateSolanaAddress,
+  findSolanaPayment, getMintInfo, isSolanaAddress, newReference, payWithSolanaWallet, solanaTxUrl, toSolanaPayUrl, validateSolanaAddress,
   verifySolanaPayment, watchSolanaWallets,
   type BurnMode, type Eip1193Provider, type PayStep, type SolanaWallet, type TokenSymbol,
 } from '@shibpay/core';
@@ -72,7 +72,7 @@ function friendlyError(err: unknown, token: string, chain: string): string {
  * asks a wallet for anything and sends nothing: for showing the flow on a website.
  */
 export class ShibPayElement extends HTMLElement {
-  static observedAttributes = ['to', 'amount', 'currency', 'burn', 'order', 'label', 'tokens', 'return-url', 'theme', 'splitter', 'demo', 'tag', 'sol', 'solana-rpc'];
+  static observedAttributes = ['to', 'amount', 'currency', 'burn', 'order', 'label', 'tokens', 'return-url', 'theme', 'splitter', 'demo', 'tag', 'sol', 'solana-rpc', 'reference'];
 
   private root: ShadowRoot;
   private wallets: WalletInfo[] = [];
@@ -141,7 +141,9 @@ export class ShibPayElement extends HTMLElement {
     if (TOKEN_SYMBOLS.includes(cfg.currency as TokenSymbol)) this.token = cfg.currency as TokenSymbol;
     this.chainId = chainsForToken(this.token)[0].chainId;
     this.solana = false;
-    this.reference = newReference();
+    // Solana Pay reference. A shop's server can pick it (reference="<base58 key>") to find and tie the payment to its order.
+    const ref = this.getAttribute('reference');
+    this.reference = ref && isSolanaAddress(ref) ? ref : newReference();
     // 3rd-6th decimals, see orderTag(). A shop's server can pick it (tag="1234") to tie the payment to its order.
     const tag = Number(this.getAttribute('tag'));
     this.tag = BigInt(Number.isInteger(tag) && tag >= 1 && tag <= 9999 ? tag : 1 + Math.floor(Math.random() * 9999)) * 10n ** 12n;

@@ -10,6 +10,13 @@
     "LEASH": "leash",
     "TREAT": "shiba-inu-treat"
   },
+  "solana": {
+    "mint": "shib5gSoVKPjwkXrxRk7SbQFzb2R9rQB3TgQWYX4RwW",
+    "rpcUrls": [
+      "https://api.mainnet-beta.solana.com"
+    ],
+    "explorerUrl": "https://solscan.io"
+  },
   "chains": [
     {
       "chainId": 109,

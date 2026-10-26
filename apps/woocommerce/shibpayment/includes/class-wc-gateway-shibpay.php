@@ -45,6 +45,13 @@ class WC_Gateway_ShibPay extends WC_Payment_Gateway {
 				'placeholder' => '0x… or yourname.shib',
 				'default'     => '',
 			),
+			'sol_wallet'  => array(
+				'title'       => __( 'Your Solana wallet (optional)', 'shibpayment' ),
+				'type'        => 'text',
+				'description' => __( 'To also take SHIB on Solana, from Phantom, Solflare and other Solana wallets. Paste your Solana address here. Leave it empty to skip Solana.', 'shibpayment' ),
+				'placeholder' => __( 'Solana address', 'shibpayment' ),
+				'default'     => '',
+			),
 			'burn'        => array(
 				'title'             => __( 'Burn % of each sale', 'shibpayment' ),
 				'type'              => 'number',
@@ -64,7 +71,7 @@ class WC_Gateway_ShibPay extends WC_Payment_Gateway {
 			'description' => array(
 				'title'   => __( 'Text at checkout', 'shibpayment' ),
 				'type'    => 'textarea',
-				'default' => __( 'Pay with SHIB, BONE, LEASH or TREAT from your crypto wallet, on Shibarium, Ethereum and 11 more networks.', 'shibpayment' ),
+				'default' => __( 'Pay with SHIB, BONE, LEASH or TREAT from your crypto wallet, on Shibarium, Ethereum and more networks.', 'shibpayment' ),
 			),
 			'tokens'      => array(
 				'title'       => __( 'Tokens you accept', 'shibpayment' ),
@@ -73,6 +80,13 @@ class WC_Gateway_ShibPay extends WC_Payment_Gateway {
 				'options'     => $tokens,
 				'default'     => array_keys( $tokens ),
 				'description' => __( 'All four are on, which is best for most shops.', 'shibpayment' ),
+			),
+			'solana_rpc'  => array(
+				'title'       => __( 'Solana connection (optional)', 'shibpayment' ),
+				'type'        => 'text',
+				'description' => __( 'Only if you take Solana. The free public Solana connection is busy and can be slow to confirm payments. A free key from a provider such as Helius or QuickNode makes it reliable: paste the https:// address they give you.', 'shibpayment' ),
+				'placeholder' => 'https://…',
+				'default'     => '',
 			),
 			'address'     => array(
 				'type'    => 'hidden',
@@ -113,6 +127,26 @@ class WC_Gateway_ShibPay extends WC_Payment_Gateway {
 		return $this->resolved;
 	}
 
+	public function validate_sol_wallet_field( $key, $value ) {
+		$value = trim( (string) $value );
+		if ( '' === $value ) {
+			return '';
+		}
+		try {
+			return ShibPay_Solana::validate_wallet( $value );
+		} catch ( InvalidArgumentException $e ) {
+			self::refuse( $e->getMessage() );
+		}
+	}
+
+	public function validate_solana_rpc_field( $key, $value ) {
+		$value = trim( (string) $value );
+		if ( '' !== $value && ! preg_match( '#^https://[^\s"<>]+$#i', $value ) ) {
+			self::refuse( __( 'The Solana connection must be an address starting with https://', 'shibpayment' ) );
+		}
+		return $value;
+	}
+
 	public function validate_burn_field( $key, $value ) {
 		$value = trim( (string) $value );
 		if ( '' === $value ) {
@@ -143,6 +177,14 @@ class WC_Gateway_ShibPay extends WC_Payment_Gateway {
 
 	public function merchant_address(): string {
 		return (string) $this->get_option( 'address' );
+	}
+
+	public function sol_wallet(): string {
+		return (string) $this->get_option( 'sol_wallet' );
+	}
+
+	public function solana_rpc(): string {
+		return (string) $this->get_option( 'solana_rpc' );
 	}
 
 	public function burn_bps(): int {
@@ -217,8 +259,8 @@ class WC_Gateway_ShibPay extends WC_Payment_Gateway {
 	}
 
 	public function get_transaction_url( $order ) {
-		$chain = (int) $order->get_meta( '_shibpay_chain' );
-		return $chain ? ShibPay_Registry::tx_url( $chain, $order->get_transaction_id() ) : '';
+		$chain = $order->get_meta( '_shibpay_chain' );
+		return $chain ? ShibPay_Orders::tx_url( $chain, $order->get_transaction_id() ) : '';
 	}
 
 	/** Order-pay page: the button, filled from the order, opens straight away. */
@@ -237,6 +279,7 @@ class WC_Gateway_ShibPay extends WC_Payment_Gateway {
 			return;
 		}
 		ShibPay_Orders::refresh_quote( $order );
+		ShibPay_Orders::watch_solana_soon( $order );
 		self::enqueue( $order, $this->get_return_url( $order ) );
 
 		$bps = (int) $order->get_meta( '_shibpay_burn_bps' );
@@ -253,13 +296,20 @@ class WC_Gateway_ShibPay extends WC_Payment_Gateway {
 				tokens="<?php echo esc_attr( (string) $order->get_meta( '_shibpay_tokens' ) ); ?>"
 				label="<?php echo esc_attr( wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) ); ?>"
 				return-url="<?php echo esc_attr( $this->get_return_url( $order ) ); ?>"
+				<?php if ( $order->get_meta( '_shibpay_sol' ) ) : ?>
+				sol="<?php echo esc_attr( (string) $order->get_meta( '_shibpay_sol' ) ); ?>"
+				reference="<?php echo esc_attr( (string) $order->get_meta( '_shibpay_reference' ) ); ?>"
+					<?php if ( $this->solana_rpc() ) : ?>
+				solana-rpc="<?php echo esc_attr( $this->solana_rpc() ); ?>"
+					<?php endif; ?>
+				<?php endif; ?>
 			></shib-pay>
 			<p class="shibpay-status" role="status" aria-live="polite"></p>
 			<details class="shibpay-paste" style="margin-top:1.5em">
 				<summary><?php esc_html_e( 'Already paid? Paste your transaction', 'shibpayment' ); ?></summary>
 				<form class="shibpay-paste-form" style="margin-top:.75em">
 					<label for="shibpay-tx"><?php esc_html_e( 'The transaction link or hash from your wallet', 'shibpayment' ); ?></label>
-					<input id="shibpay-tx" name="tx" type="text" class="input-text" style="width:100%" placeholder="https://shibariumscan.io/tx/0x…" autocomplete="off" required />
+					<input id="shibpay-tx" name="tx" type="text" class="input-text" style="width:100%" placeholder="https://shibariumscan.io/tx/0x… or https://solscan.io/tx/…" autocomplete="off" required />
 					<button type="submit" class="button" style="margin-top:.5em"><?php esc_html_e( 'Check my payment', 'shibpayment' ); ?></button>
 				</form>
 			</details>
@@ -276,7 +326,7 @@ class WC_Gateway_ShibPay extends WC_Payment_Gateway {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only hint; the payment itself is checked on-chain.
 		$tx = isset( $_GET['shibpay_tx'] ) ? sanitize_text_field( wp_unslash( $_GET['shibpay_tx'] ) ) : '';
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$chain = isset( $_GET['shibpay_chain'] ) ? absint( $_GET['shibpay_chain'] ) : null;
+		$chain = isset( $_GET['shibpay_chain'] ) ? sanitize_key( wp_unslash( $_GET['shibpay_chain'] ) ) : null;
 		if ( $tx && $order->needs_payment() && ! $order->get_meta( '_shibpay_tx' ) ) {
 			ShibPay_Orders::confirm( $order, $tx, $chain ?: null );
 		}

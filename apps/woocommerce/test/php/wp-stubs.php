@@ -5,6 +5,7 @@
 define( 'ABSPATH', __DIR__ );
 define( 'MINUTE_IN_SECONDS', 60 );
 define( 'HOUR_IN_SECONDS', 3600 );
+define( 'DAY_IN_SECONDS', 86400 );
 
 $GLOBALS['wp_options']    = array();
 $GLOBALS['wp_transients'] = array();

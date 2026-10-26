@@ -50,6 +50,23 @@ final class ShibPay_Uint {
 		return self::norm( strrev( $out ) );
 	}
 
+	/** $a - $b, or null when that would be negative. */
+	public static function sub( string $a, string $b ): ?string {
+		if ( self::cmp( $a, $b ) < 0 ) {
+			return null;
+		}
+		$a      = strrev( self::norm( $a ) );
+		$b      = strrev( self::norm( $b ) );
+		$out    = '';
+		$borrow = 0;
+		for ( $i = 0, $n = strlen( $a ); $i < $n; $i++ ) {
+			$d = (int) $a[ $i ] - (int) ( $b[ $i ] ?? 0 ) - $borrow;
+			$borrow = $d < 0 ? 1 : 0;
+			$out   .= $d + 10 * $borrow;
+		}
+		return self::norm( strrev( $out ) );
+	}
+
 	/** $a * $m, for a small non-negative int $m. */
 	public static function mul( string $a, int $m ): string {
 		$out   = '';

@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       ShibPayment for WooCommerce
  * Plugin URI:        https://shibpayments.shibfun.app
- * Description:       Pay with SHIB at checkout. Customers pay with SHIB, BONE, LEASH or TREAT on 13 networks, straight into your own wallet. No fees.
+ * Description:       Pay with SHIB at checkout. Customers pay with SHIB, BONE, LEASH or TREAT on 13 networks, or SHIB on Solana, straight into your own wallet. No fees.
  * Version:           0.1.0
  * Requires at least: 6.3
  * Requires PHP:      8.0
@@ -21,7 +21,7 @@ define( 'SHIBPAY_VERSION', '0.1.0' );
 define( 'SHIBPAY_URL', plugin_dir_url( __FILE__ ) );
 define( 'SHIBPAY_SITE', 'https://shibpayments.shibfun.app' );
 
-foreach ( array( 'keccak', 'uint', 'address', 'http', 'registry', 'rpc', 'verifier', 'prices', 'names' ) as $shibpay_file ) {
+foreach ( array( 'keccak', 'base58', 'uint', 'address', 'http', 'registry', 'rpc', 'verifier', 'solana', 'prices', 'names' ) as $shibpay_file ) {
 	require_once __DIR__ . "/includes/class-shibpay-$shibpay_file.php";
 }
 
@@ -62,6 +62,18 @@ add_action(
 );
 
 add_action( 'shibpay_recheck', array( 'ShibPay_Orders', 'recheck' ) );
+add_action( 'shibpay_watch_solana', array( 'ShibPay_Orders', 'watch_solana' ) );
+
+// The shop's own Solana connection, when set, before the busy public one.
+add_filter(
+	'shibpay_rpc_urls',
+	function ( $urls, $chain ) {
+		$custom = 'solana' === $chain ? ( get_option( 'woocommerce_shibpay_settings', array() )['solana_rpc'] ?? '' ) : '';
+		return $custom ? array_merge( array( $custom ), $urls ) : $urls;
+	},
+	10,
+	2
+);
 
 add_action(
 	'rest_api_init',
@@ -95,7 +107,7 @@ add_action(
 						'required' => true,
 						'type'     => 'string',
 					),
-					'chain' => array( 'type' => 'integer' ),
+					'chain' => array( 'type' => array( 'integer', 'string' ) ),
 					'token' => array(
 						'type' => 'string',
 						'enum' => ShibPay_Registry::symbols(),
@@ -106,7 +118,7 @@ add_action(
 					if ( ! $order ) {
 						return new WP_Error( 'shibpay_order', 'Order not found', array( 'status' => 404 ) );
 					}
-					return ShibPay_Orders::confirm( $order, (string) $req['tx'], $req['chain'] ? (int) $req['chain'] : null, $req['token'] ?: null );
+					return ShibPay_Orders::confirm( $order, (string) $req['tx'], $req['chain'] ?: null, $req['token'] ?: null );
 				},
 			)
 		);

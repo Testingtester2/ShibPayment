@@ -3,7 +3,7 @@
 // prints the answer as JSON.
 require __DIR__ . '/wp-stubs.php';
 $plugin = dirname( __DIR__, 2 ) . '/shibpayment/includes';
-foreach ( array( 'keccak', 'uint', 'address', 'http', 'registry', 'rpc', 'verifier', 'prices', 'names', 'orders' ) as $f ) {
+foreach ( array( 'keccak', 'base58', 'uint', 'address', 'http', 'registry', 'rpc', 'verifier', 'solana', 'prices', 'names', 'orders' ) as $f ) {
 	require_once "$plugin/class-shibpay-$f.php";
 }
 
@@ -12,10 +12,20 @@ $job = json_decode( stream_get_contents( STDIN ), true );
 foreach ( ShibPay_Registry::chains() as $c ) {
 	ShibPay_Rpc::$override[ $c['chainId'] ] = array( $job['rpc'][ $c['chainId'] ] ?? 'http://127.0.0.1:1' );
 }
+ShibPay_Rpc::$override['solana'] = array( $job['rpc']['solana'] ?? 'http://127.0.0.1:1' );
 
 switch ( $job['op'] ) {
 	case 'keccak':
 		$out = array_map( fn( $s ) => ShibPay_Keccak::hash( $s ), $job['data'] );
+		break;
+	case 'base58':
+		$out = array(
+			'encoded' => array_map( fn( $hex ) => ShibPay_Base58::encode( (string) hex2bin( $hex ) ), $job['hex'] ),
+			'decoded' => array_map( fn( $s ) => bin2hex( (string) ShibPay_Base58::decode( $s ) ), $job['b58'] ),
+			'keys'    => array_map( fn( $s ) => ShibPay_Base58::is_key( $s ), $job['keys'] ),
+			'sigs'    => array_map( fn( $s ) => ShibPay_Solana::is_signature( $s ), $job['keys'] ),
+			'random'  => ShibPay_Base58::random_key(),
+		);
 		break;
 	case 'checksum':
 		$out = array_map( fn( $s ) => ShibPay_Address::checksum( $s ), $job['data'] );
@@ -49,8 +59,11 @@ switch ( $job['op'] ) {
 		}
 		$out = array( 'answers' => array() );
 		foreach ( $job['calls'] as $c ) {
-			if ( 'recheck' === $c['call'] ) {
+			if ( 'recheck' === ( $c['call'] ?? '' ) ) {
 				ShibPay_Orders::recheck( $c['order'] );
+				$out['answers'][] = null;
+			} elseif ( 'watch' === ( $c['call'] ?? '' ) ) {
+				ShibPay_Orders::watch_solana( $c['order'] );
 				$out['answers'][] = null;
 			} else {
 				$out['answers'][] = ShibPay_Orders::confirm( wc_get_order( $c['order'] ), $c['tx'], $c['chain'] ?? null, $c['token'] ?? null );

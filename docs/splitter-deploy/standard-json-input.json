@@ -1,0 +1,24 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "ShibPaySplitter.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity 0.8.24;\n\n/// @title ShibPaySplitter\n/// @notice Pays a merchant and burns a merchant-chosen share of the payment in\n/// one transaction. There is no owner, no fee and no upgrade path, and tokens\n/// never rest here: they move straight from the payer to the merchant and to\n/// the burn address. The contract only ever pulls from msg.sender, so an\n/// approval given to it cannot be spent by anyone else.\ncontract ShibPaySplitter {\n    /// @notice The burn address used on every chain.\n    address public constant BURN = 0x000000000000000000000000000000000000dEaD;\n\n    /// @notice 100% in basis points.\n    uint16 public constant MAX_BPS = 10_000;\n\n    /// @param orderId Merchant's order reference (keccak256 of the order string).\n    /// @param token The ERC-20 paid, or address(0) for the chain's native coin.\n    /// @param amount Total paid by the payer, burn included.\n    /// @param burned The part of `amount` sent to BURN.\n    event Paid(\n        bytes32 indexed orderId,\n        address indexed payer,\n        address indexed merchant,\n        address token,\n        uint256 amount,\n        uint256 burned\n    );\n\n    error InvalidMerchant();\n    error InvalidBurn();\n    error ZeroAmount();\n    error NotAContract();\n    error TransferFailed();\n\n    /// @notice Pay `amount` of `token` to `merchant`, burning `burnBps` of it.\n    function pay(address token, address merchant, uint256 amount, uint16 burnBps, bytes32 orderId) external {\n        uint256 burned = _split(merchant, amount, burnBps);\n        if (token.code.length == 0) revert NotAContract();\n\n        if (burned != 0) _pull(token, BURN, burned);\n        if (amount != burned) _pull(token, merchant, amount - burned);\n\n        emit Paid(orderId, msg.sender, merchant, token, amount, burned);\n    }\n\n    /// @notice Pay msg.value of the native coin (e.g. BONE on Shibarium) to `merchant`, burning `burnBps` of it.\n    function payNative(address merchant, uint16 burnBps, bytes32 orderId) external payable {\n        uint256 burned = _split(merchant, msg.value, burnBps);\n\n        if (burned != 0) _send(BURN, burned);\n        if (msg.value != burned) _send(merchant, msg.value - burned);\n\n        emit Paid(orderId, msg.sender, merchant, address(0), msg.value, burned);\n    }\n\n    function _split(address merchant, uint256 amount, uint16 burnBps) private pure returns (uint256) {\n        if (merchant == address(0) || merchant == BURN) revert InvalidMerchant();\n        if (burnBps > MAX_BPS) revert InvalidBurn();\n        if (amount == 0) revert ZeroAmount();\n        return (amount * burnBps) / MAX_BPS;\n    }\n\n    /// @dev transferFrom(msg.sender, to, value), accepting tokens that return nothing.\n    function _pull(address token, address to, uint256 value) private {\n        (bool ok, bytes memory data) =\n            token.call(abi.encodeWithSelector(0x23b872dd, msg.sender, to, value));\n        if (!ok || (data.length != 0 && !abi.decode(data, (bool)))) revert TransferFailed();\n    }\n\n    function _send(address to, uint256 value) private {\n        (bool ok,) = to.call{value: value}(\"\");\n        if (!ok) revert TransferFailed();\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "evmVersion": "paris",
+    "optimizer": {
+      "enabled": true,
+      "runs": 10000
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode.object",
+          "metadata"
+        ]
+      }
+    }
+  }
+}

@@ -43,6 +43,7 @@ Download `shibpayment-woocommerce.zip` from the website (`/shibpayment-woocommer
 At checkout the buyer picks **Pay with SHIB** (classic and block checkout both work), and the payment window opens with the order's total and number filled in. The plugin then checks the payment on-chain from your server, in PHP, with the same rules as `verifyPayment()`, and marks the order paid:
 
 - A plain transfer must carry the order's 4-digit code in its amount (the plugin hands it to the button as `tag`) and be newer than the order. A payment to you that doesn't carry the code is put **on hold** for you to look at, rather than accepted or refused, since it may be someone else's.
+- SHIB on Solana, when the shop adds a Solana wallet in the settings: each order gets its own Solana Pay `reference` (handed to the button as `reference`), the payment must carry it and be final, and the server looks the reference up every minute for half an hour, so a buyer who paid by QR and closed the page is still matched. An optional Solana connection URL (Helius, QuickNode…) makes this steadier than the public endpoint.
 - One transaction can only pay one order.
 - The amount is checked against CoinGecko's price in your shop currency, allowing 3% for price movement while the buyer's quote is held.
 - Payments still waiting for confirmations are rechecked every 30 seconds for an hour.
@@ -71,6 +72,7 @@ One button covers the whole checkout: have your page fill `amount` and `order` f
 | --- | --- |
 | `to` | Merchant's receiving address (required). |
 | `sol` | Optional Solana wallet. Adds Solana to the networks for SHIB, paid with Solana Pay. |
+| `reference` | Optional Solana Pay reference (a base58 public key). Your server's key for this order, so it can find the payment by it. Random when left out. |
 | `solana-rpc` | Optional Solana RPC URL. The public one works but is rate-limited; a free Helius or QuickNode key is steadier for a busy shop. |
 | `amount`, `currency` | Price. `currency` is a fiat code (USD, EUR, NGN, INR…) converted at checkout via CoinGecko, or a token symbol (`SHIB`) to charge an exact token amount. |
 | `burn` | Percent of each sale to burn, 0 to 100 (default 0). Burned in the payment on Ethereum; a pledge on other networks. |
@@ -126,7 +128,7 @@ It waits for `finalized` by default, about 13 seconds after the payment, after w
 - Deployed on Ethereum only, through the CREATE2 deployer, at **`0xd25D81E6BF55465BAbe85eA543EB6e8bCbFaba82`** (from `npm run compile`; it changes if the contract or compiler changes).
 - The burn rounds down; dust goes to the merchant.
 
-Until the splitter is deployed, Ethereum payments fall back to a pledge too, and verification accepts that. To deploy (the key only pays gas and gets no rights):
+Until the splitter is deployed, Ethereum payments fall back to a pledge too, and verification accepts that. Deploying it is optional: it only moves Ethereum burns from "the shop burns later" to "burned in the payment". To deploy from a browser with Remix or MetaMask, follow [docs/splitter-deploy](docs/splitter-deploy/DEPLOY-WITH-REMIX.md). From the repo (the key only pays gas and gets no rights):
 
 ```sh
 npm run compile
@@ -164,7 +166,7 @@ The site is a static build. `vercel.json` sets everything for Vercel: import the
 
 ## Roadmap
 
-1. **Now:** button, payment links, link builder, burn helper, Ethereum burn splitter, WooCommerce plugin, 13 EVM networks, SHIB on Solana.
+1. **Now:** button, payment links, link builder, burn helper, Ethereum burn splitter, WooCommerce plugin, 13 EVM networks, SHIB on Solana (in the button, links and the plugin).
 2. **Next:** deploy the splitter on Ethereum, ShibWallet opening payment links directly, bridge-then-burn in one tap once ShibWallet's CCIP sending is wired up.
-3. **Then:** Solana in the WooCommerce plugin, WalletConnect, more shop platforms.
+3. **Then:** WalletConnect, more shop platforms.
 4. **Later:** supply-chain provenance on Shibarium.

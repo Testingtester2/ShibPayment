@@ -31,6 +31,12 @@ final class ShibPay_Orders {
 		$order->update_meta_data( '_shibpay_merchant', $gateway->merchant_address() );
 		$order->update_meta_data( '_shibpay_burn_bps', $gateway->burn_bps() );
 		$order->update_meta_data( '_shibpay_tokens', implode( ',', $gateway->tokens() ) );
+		// SHIB on Solana goes to the shop's Solana wallet, found by this order's own reference key.
+		$sol = in_array( 'SHIB', $gateway->tokens(), true ) ? $gateway->sol_wallet() : '';
+		$order->update_meta_data( '_shibpay_sol', $sol );
+		if ( $sol && ! $order->get_meta( '_shibpay_reference' ) ) {
+			$order->update_meta_data( '_shibpay_reference', ShibPay_Base58::random_key() );
+		}
 		$order->save();
 	}
 
@@ -64,17 +70,21 @@ final class ShibPay_Orders {
 	 * Checks $tx against $order and acts on the answer.
 	 *
 	 * @param string   $tx    Transaction hash, or an explorer link to it.
-	 * @param int|null $chain Network, when known (the button knows; a pasted hash doesn't).
+	 * @param int|string|null $chain Network (an EVM chain id or "solana"), when known (the button knows; a pasted hash doesn't).
 	 * @param string|null $token Token, when known.
 	 * @return array{status: string, message: string} status: paid | confirming | review | failed
 	 */
-	public static function confirm( WC_Order $order, string $tx, ?int $chain = null, ?string $token = null ): array {
+	public static function confirm( WC_Order $order, string $tx, int|string|null $chain = null, ?string $token = null ): array {
 		$tx_in = trim( $tx );
-		if ( ! preg_match( '/0x[0-9a-fA-F]{64}/', $tx_in, $m ) ) {
+		if ( preg_match( '/0x[0-9a-fA-F]{64}/', $tx_in, $m ) ) {
+			$tx    = strtolower( $m[0] );
+			$chain = is_numeric( $chain ) && (int) $chain > 0 ? (int) $chain : ShibPay_Registry::chain_for_explorer_url( $tx_in );
+		} elseif ( preg_match( '/[1-9A-HJ-NP-Za-km-z]{64,90}/', $tx_in, $m ) && ShibPay_Solana::is_signature( $m[0] ) ) {
+			$tx    = $m[0];
+			$chain = ShibPay_Solana::CHAIN;
+		} else {
 			return self::answer( 'failed', __( 'That doesn\'t look like a transaction. Paste the link your wallet shows after paying.', 'shibpayment' ) );
 		}
-		$tx    = strtolower( $m[0] );
-		$chain = $chain ?: ShibPay_Registry::chain_for_explorer_url( $tx_in );
 
 		if ( ! $order->needs_payment() || 'review' === $order->get_meta( '_shibpay_state' ) ) {
 			return self::status( $order );
@@ -87,7 +97,10 @@ final class ShibPay_Orders {
 			update_option( $lock, time(), false );
 		}
 		try {
-			return self::check( $order, $tx, $chain, $token );
+			if ( self::used_elsewhere( $order, $tx ) ) {
+				return self::answer( 'failed', __( 'That payment has already been used for another order.', 'shibpayment' ) );
+			}
+			return ShibPay_Solana::CHAIN === $chain ? self::check_solana( $order, $tx ) : self::check( $order, $tx, $chain, $token );
 		} finally {
 			delete_option( $lock );
 		}
@@ -100,7 +113,37 @@ final class ShibPay_Orders {
 		if ( ! $order || '' === $tx || ! $order->needs_payment() || 'paid' === $order->get_meta( '_shibpay_state' ) ) {
 			return;
 		}
-		self::confirm( $order, $tx, (int) $order->get_meta( '_shibpay_chain' ) ?: null, $order->get_meta( '_shibpay_token' ) ?: null );
+		self::confirm( $order, $tx, $order->get_meta( '_shibpay_chain' ) ?: null, $order->get_meta( '_shibpay_token' ) ?: null );
+	}
+
+	/** Cron: looks for a Solana payment carrying the order's reference, for buyers who paid by QR and left. */
+	public static function watch_solana( int $order_id ): void {
+		$order = wc_get_order( $order_id );
+		if ( ! $order || ! $order->needs_payment() || $order->get_meta( '_shibpay_tx' ) || ! $order->get_meta( '_shibpay_reference' ) ) {
+			return;
+		}
+		try {
+			$sig = ( new ShibPay_Solana( new ShibPay_Rpc() ) )->find( (string) $order->get_meta( '_shibpay_reference' ) );
+		} catch ( RuntimeException $e ) {
+			$sig = null;
+		}
+		if ( $sig ) {
+			self::confirm( $order, $sig, ShibPay_Solana::CHAIN );
+		} elseif ( time() < (int) $order->get_meta( '_shibpay_watch_until' ) ) {
+			wp_schedule_single_event( time() + MINUTE_IN_SECONDS, 'shibpay_watch_solana', array( $order_id ) );
+		}
+	}
+
+	/** Watches for a Solana payment for the next half hour (the button holds a quote for 15 minutes). */
+	public static function watch_solana_soon( WC_Order $order ): void {
+		if ( ! $order->get_meta( '_shibpay_reference' ) ) {
+			return;
+		}
+		$order->update_meta_data( '_shibpay_watch_until', time() + 30 * MINUTE_IN_SECONDS );
+		$order->save();
+		if ( ! wp_next_scheduled( 'shibpay_watch_solana', array( $order->get_id() ) ) ) {
+			wp_schedule_single_event( time() + MINUTE_IN_SECONDS, 'shibpay_watch_solana', array( $order->get_id() ) );
+		}
 	}
 
 	/** What to tell the buyer about the order now. */
@@ -128,8 +171,8 @@ final class ShibPay_Orders {
 		);
 	}
 
-	private static function check( WC_Order $order, string $tx, ?int $chain, ?string $token ): array {
-		$used = wc_get_orders(
+	private static function used_elsewhere( WC_Order $order, string $tx ): bool {
+		return (bool) wc_get_orders(
 			array(
 				'limit'      => 1,
 				'exclude'    => array( $order->get_id() ),
@@ -142,10 +185,51 @@ final class ShibPay_Orders {
 				),
 			)
 		);
-		if ( $used ) {
-			return self::answer( 'failed', __( 'That payment has already been used for another order.', 'shibpayment' ) );
-		}
+	}
 
+	private static function check_solana( WC_Order $order, string $sig ): array {
+		$wallet = (string) $order->get_meta( '_shibpay_sol' );
+		$base   = array(
+			'chainId' => ShibPay_Solana::CHAIN,
+			'token'   => 'SHIB',
+		);
+		if ( '' === $wallet ) {
+			return self::retry_or_fail( $order, $sig, $base + array( 'ok' => false, 'retry' => false, 'reason' => 'This shop does not take payments on Solana' ) );
+		}
+		$solana   = new ShibPay_Solana( new ShibPay_Rpc() );
+		$decimals = $solana->decimals();
+		$total    = wc_format_decimal( $order->get_total(), wc_get_price_decimals() );
+		$min      = null;
+		if ( null !== $decimals ) {
+			if ( 'SHIB' === strtoupper( $order->get_currency() ) ) {
+				$min = ShibPay_Uint::parse_units( $total, $decimals );
+			} else {
+				$quote  = json_decode( (string) $order->get_meta( '_shibpay_quote' ), true );
+				$prices = array_filter( array( $quote['prices']['SHIB'] ?? null, self::live_prices( $order->get_currency() )['SHIB'] ?? null ) );
+				$min    = $prices ? ShibPay_Prices::min_amount( $total, max( $prices ), $decimals ) : null;
+			}
+		}
+		if ( null === $min ) {
+			return self::retry_or_fail( $order, $sig, $base + array( 'ok' => false, 'retry' => true, 'reason' => 'No price or network answer right now to check the amount' ) );
+		}
+		$created = $order->get_date_created();
+		$r       = $base + array( 'decimals' => $decimals ) + $solana->verify(
+			$sig,
+			array(
+				'recipient' => $wallet,
+				'minAmount' => $min,
+				'reference' => (string) $order->get_meta( '_shibpay_reference' ) ?: null,
+				'burnBps'   => (int) $order->get_meta( '_shibpay_burn_bps' ),
+				'notBefore' => $created ? $created->getTimestamp() - 10 * MINUTE_IN_SECONDS : null,
+			)
+		);
+		if ( $r['ok'] ) {
+			return self::paid( $order, $sig, $r );
+		}
+		return ! empty( $r['review'] ) ? self::review( $order, $sig, $r ) : self::retry_or_fail( $order, $sig, $r );
+	}
+
+	private static function check( WC_Order $order, string $tx, ?int $chain, ?string $token ): array {
 		$rpc      = new ShibPay_Rpc();
 		$verifier = new ShibPay_Verifier( $rpc );
 		$allowed  = array_filter( explode( ',', (string) $order->get_meta( '_shibpay_tokens' ) ) ) ?: ShibPay_Registry::symbols();
@@ -248,13 +332,20 @@ final class ShibPay_Orders {
 		);
 	}
 
-	private static function amount_text( string $amount, string $sym ): string {
-		return ShibPay_Uint::format_units( $amount, 18 ) . ' ' . $sym;
+	private static function amount_text( string $amount, string $sym, int $decimals = 18 ): string {
+		return ShibPay_Uint::format_units( $amount, $decimals ) . ' ' . $sym;
 	}
 
-	private static function tx_link( int $chain_id, string $tx ): string {
-		$chain = ShibPay_Registry::chain( $chain_id );
-		return sprintf( '<a href="%s" target="_blank" rel="noopener">%s</a>', esc_url( ShibPay_Registry::tx_url( $chain_id, $tx ) ), esc_html( ( $chain['name'] ?? '' ) . ' ' . substr( $tx, 0, 10 ) . '…' ) );
+	public static function chain_name( int|string $chain_id ): string {
+		return ShibPay_Solana::CHAIN === $chain_id ? 'Solana' : ( ShibPay_Registry::chain( (int) $chain_id )['name'] ?? '' );
+	}
+
+	public static function tx_url( int|string $chain_id, string $tx ): string {
+		return ShibPay_Solana::CHAIN === $chain_id ? ShibPay_Solana::tx_url( $tx ) : ShibPay_Registry::tx_url( (int) $chain_id, $tx );
+	}
+
+	private static function tx_link( int|string $chain_id, string $tx ): string {
+		return sprintf( '<a href="%s" target="_blank" rel="noopener">%s</a>', esc_url( self::tx_url( $chain_id, $tx ) ), esc_html( self::chain_name( $chain_id ) . ' ' . substr( $tx, 0, 10 ) . '…' ) );
 	}
 
 	private static function remember( WC_Order $order, string $tx, array $r, string $state ): void {
@@ -270,20 +361,22 @@ final class ShibPay_Orders {
 		$order->update_meta_data( '_shibpay_payer', $r['payer'] );
 		$order->update_meta_data( '_shibpay_burned', $r['burned'] );
 		$order->update_meta_data( '_shibpay_pledged', $r['pledged'] );
-		$chain = ShibPay_Registry::chain( $r['chainId'] );
+		$dec = (int) ( $r['decimals'] ?? 18 );
 		/* translators: 1: amount and token, 2: network, 3: transaction link */
-		$note = sprintf( __( 'Paid %1$s on %2$s. Transaction: %3$s', 'shibpayment' ), self::amount_text( $r['amount'], $r['token'] ), $chain['name'], self::tx_link( $r['chainId'], $tx ) );
+		$note = sprintf( __( 'Paid %1$s on %2$s. Transaction: %3$s', 'shibpayment' ), self::amount_text( $r['amount'], $r['token'], $dec ), self::chain_name( $r['chainId'] ), self::tx_link( $r['chainId'], $tx ) );
 		if ( 'in-tx' === $r['burnMode'] ) {
 			/* translators: %s: amount and token */
 			$note .= '<br>' . sprintf( __( '%s burned in the same payment.', 'shibpayment' ), self::amount_text( $r['burned'], $r['token'] ) );
 		} elseif ( 'pledge' === $r['burnMode'] && '0' !== $r['pledged'] ) {
 			/* translators: %s: amount and token */
-			$note .= '<br>' . sprintf( __( 'Your burn pledge for this sale: %s. Burn it on Ethereum with the burn helper (see the ShibPayment settings).', 'shibpayment' ), self::amount_text( $r['pledged'], $r['token'] ) );
-			self::add_pledge( $r['token'], $r['pledged'] );
+			$note .= '<br>' . sprintf( __( 'Your burn pledge for this sale: %s. Burn it on Ethereum with the burn helper (see the ShibPayment settings).', 'shibpayment' ), self::amount_text( $r['pledged'], $r['token'], $dec ) );
+			// Kept in Ethereum's 18 decimals, where the burn happens.
+			self::add_pledge( $r['token'], ShibPay_Uint::norm( $r['pledged'] . str_repeat( '0', max( 0, 18 - $dec ) ) ) );
 		}
 		$order->add_order_note( $note );
 		$order->payment_complete( $tx );
 		wp_clear_scheduled_hook( 'shibpay_recheck', array( $order->get_id() ) );
+		wp_clear_scheduled_hook( 'shibpay_watch_solana', array( $order->get_id() ) );
 		return self::status( $order );
 	}
 
@@ -297,7 +390,7 @@ final class ShibPay_Orders {
 				sprintf(
 					/* translators: 1: amount and token, 2: transaction link */
 					__( 'The customer sent a payment of %1$s (%2$s), but it isn\'t marked with this order\'s code, so it could belong to another order. If it\'s right, change the order to Processing.', 'shibpayment' ),
-					self::amount_text( $r['amount'], $r['token'] ),
+					self::amount_text( $r['amount'], $r['token'], (int) ( $r['decimals'] ?? 18 ) ),
 					self::tx_link( $r['chainId'], $tx )
 				)
 			);
@@ -314,7 +407,7 @@ final class ShibPay_Orders {
 					$order->delete_meta_data( $k );
 				}
 			}
-			$order->add_order_note( sprintf( 'ShibPayment: %s (%s).', esc_html( $r['reason'] ), $r['chainId'] ? self::tx_link( (int) $r['chainId'], $tx ) : esc_html( $tx ) ) );
+			$order->add_order_note( sprintf( 'ShibPayment: %s (%s).', esc_html( $r['reason'] ), $r['chainId'] ? self::tx_link( $r['chainId'], $tx ) : esc_html( $tx ) ) );
 			$order->save();
 			return self::answer( 'failed', self::buyer_reason( $r['reason'] ) );
 		}
@@ -330,7 +423,7 @@ final class ShibPay_Orders {
 			return self::answer( 'review', __( 'Thanks! The shop will check your payment and confirm your order.', 'shibpayment' ) );
 		}
 		if ( ! $same && $r['chainId'] && str_starts_with( $r['reason'], 'Waiting for confirmations' ) ) {
-			$order->add_order_note( sprintf( __( 'Payment seen on %s, waiting for confirmations.', 'shibpayment' ), self::tx_link( (int) $r['chainId'], $tx ) ) );
+			$order->add_order_note( sprintf( __( 'Payment seen on %s, waiting for confirmations.', 'shibpayment' ), self::tx_link( $r['chainId'], $tx ) ) );
 		}
 		if ( ! wp_next_scheduled( 'shibpay_recheck', array( $order->get_id() ) ) ) {
 			wp_schedule_single_event( time() + self::RECHECK_EVERY, 'shibpay_recheck', array( $order->get_id() ) );
