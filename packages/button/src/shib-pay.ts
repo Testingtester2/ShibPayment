@@ -392,7 +392,8 @@ export class ShibPayElement extends HTMLElement {
 
   private goBack() {
     const cfg = this.config();
-    if (typeof cfg === 'string' || !cfg.returnUrl || !this.result) return this.close();
+    // A demo sent nothing, so it never hands the shop a transaction reference.
+    if (typeof cfg === 'string' || !cfg.returnUrl || !this.result || this.demo) return this.close();
     const u = new URL(cfg.returnUrl);
     u.searchParams.set('shibpay_tx', this.result.hash);
     u.searchParams.set('shibpay_chain', String(this.result.chainId));
@@ -524,7 +525,7 @@ export class ShibPayElement extends HTMLElement {
         <div><span>Order</span><span>${esc(cfg.order)}</span></div>
       </div>
       ${this.demo ? '' : `<div class="center"><a class="link" href="${esc(explorerTxUrl(r.chainId, r.hash))}" target="_blank" rel="noopener">View receipt on the explorer</a></div>`}
-      <button class="btn" data-act="return">${cfg.returnUrl ? 'Back to the shop' : 'Done'}</button>`;
+      <button class="btn" data-act="return">${cfg.returnUrl && !this.demo ? 'Back to the shop' : 'Done'}</button>`;
   }
 
   private errorView(): string {
