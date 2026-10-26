@@ -105,7 +105,7 @@
       <div>
         <h2>For websites</h2>
         <p class="muted">One script tag and one button on your checkout page. Fill in the price and order number from the cart, the way your shop already prints its total, and the button charges whatever is in the basket. Your server confirms each payment on-chain before shipping.</p>
-        <p class="muted">No cart? Make one button or <a href="/setup.html">payment link</a> per item. On WooCommerce, the plugin (coming next) does all of this for you.</p>
+        <p class="muted">No cart? Make one button or <a href="/setup.html">payment link</a> per item. On WooCommerce, <a href="#woocommerce">the plugin</a> does all of this for you.</p>
         <div class="chains">
           <span>Shibarium</span><span>Ethereum</span><span>BNB Chain</span><span>Arbitrum</span><span>OP Mainnet</span><span>Base</span><span>Polygon</span><span>Scroll</span><span>Linea</span><span>Celo</span><span>Gnosis</span><span>Mantle</span><span>Avalanche</span>
         </div>
@@ -131,6 +131,23 @@
     // verifyPayment() from @shibpay/core before shipping.
   });
 &lt;/script&gt;</code></pre>
+    </section>
+
+    <section id="woocommerce" class="dev">
+      <div>
+        <h2>For WooCommerce</h2>
+        <p class="muted">A WordPress plugin adds <b>Pay with SHIB</b> to your checkout. It fills in the price and order number for you, and marks an order paid only once the payment is confirmed on-chain. Free, like everything here, and the money still goes straight to your wallet.</p>
+        <p style="margin-top:20px"><a class="btn" href="/shibpayment-woocommerce.zip" download>Download the plugin</a></p>
+      </div>
+      <div class="glass" style="padding:22px">
+        <h3 style="margin-top:0">Set up in three steps</h3>
+        <ol class="muted" style="margin:0;padding-left:20px;line-height:1.7">
+          <li>In WordPress, open <b>Plugins → Add New → Upload Plugin</b>, choose the file you downloaded, then <b>Install</b> and <b>Activate</b>.</li>
+          <li>Open <b>WooCommerce → Settings → Payments → Pay with SHIB</b>.</li>
+          <li>Paste your wallet address or .shib name, set a burn % if you like, tick <b>Turn on</b> and <b>Save</b>.</li>
+        </ol>
+        <p class="muted" style="margin-bottom:0">If you set a burn, the settings page keeps a running total of what you've pledged, with a link to the <a href="/burn.html">burn helper</a>.</p>
+      </div>
     </section>
   </div>
   <footer>ShibPayment is free and open source. Payments are non-custodial: we never hold your money or your keys.</footer>

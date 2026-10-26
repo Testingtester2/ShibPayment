@@ -18,6 +18,7 @@ Free, non-custodial **Pay with SHIB** for any shop. A merchant pastes their wall
 | `packages/contracts` | `ShibPaySplitter.sol`, the burn splitter, compiled with solc-js; deploy script. |
 | `packages/core` | The SDK: quotes, payment links, paying through any EIP-1193 wallet, on-chain verification, payment search. |
 | `packages/button` | `<shib-pay>`, a framework-free web component built to one script, `shib-pay.js`. |
+| `apps/woocommerce` | ShibPayment for WooCommerce, the WordPress plugin. Built to `shibpayment-woocommerce.zip` on the website. |
 | `apps/web` | The website: landing page, merchant link builder (`/setup.html`), hosted payment page (`/pay.html`) and burn helper (`/burn.html`). |
 
 ## For merchants
@@ -34,6 +35,21 @@ If you set a burn, open `/burn.html` once a week or month: enter what you took i
 ![Burn helper](docs/screenshots/burn-helper.png)
 
 ![Link builder](docs/screenshots/link-builder.png)
+
+## For WooCommerce
+
+Download `shibpayment-woocommerce.zip` from the website (`/shibpayment-woocommerce.zip`), then in WordPress: **Plugins → Add New → Upload Plugin**, activate it, and open **WooCommerce → Settings → Payments → Pay with SHIB**. Paste your wallet (or .shib name), set a burn % if you want, tick **Turn on**, save.
+
+At checkout the buyer picks **Pay with SHIB** (classic and block checkout both work), and the payment window opens with the order's total and number filled in. The plugin then checks the payment on-chain from your server, in PHP, with the same rules as `verifyPayment()`, and marks the order paid:
+
+- A plain transfer must carry the order's 4-digit code in its amount (the plugin hands it to the button as `tag`) and be newer than the order. A payment to you that doesn't carry the code is put **on hold** for you to look at, rather than accepted or refused, since it may be someone else's.
+- One transaction can only pay one order.
+- The amount is checked against CoinGecko's price in your shop currency, allowing 3% for price movement while the buyer's quote is held.
+- Payments still waiting for confirmations are rechecked every 30 seconds for an hour.
+- Buyers who paid from a phone wallet and closed the page can paste the transaction link on the order's payment page.
+- Pledged burns are added up on the settings page, with a link to the burn helper.
+
+The plugin carries its own copy of `shib-pay.js`, so checkout doesn't depend on this website being up. It needs PHP 8.0+, WooCommerce 8+, and no PHP extensions beyond the usual ones (keccak-256 and uint256 sums are done in plain PHP). Network lists and token addresses are generated from `packages/chains` (`npm run data -w @shibpay/woocommerce`), and a test fails if they drift apart.
 
 ## For websites
 
@@ -61,6 +77,7 @@ One button covers the whole checkout: have your page fill `amount` and `order` f
 | `tokens` | Comma list to limit tokens, e.g. `SHIB,BONE`. |
 | `return-url` | Where to send the buyer after paying; `shibpay_tx`, `shibpay_chain` and `shibpay_order` are appended. |
 | `theme="dark"` | Dark trigger button instead of the orange one. |
+| `tag` | Optional 1 to 9999. Your server's code for this order, put in the amount's 3rd to 6th decimals so you can tie a plain transfer to its order. Random when left out. |
 
 The element fires `shibpay:paid` with `{ txHash, chainId, token, amount, burnMode, burned, pledged, payer, order, merchant }`. `burnMode` is `in-tx` (burned in the payment), `pledge` (the shop was paid in full and `pledged` is theirs to burn on Ethereum) or `none`.
 
@@ -128,7 +145,7 @@ The site is a static build. `vercel.json` sets everything for Vercel: import the
 
 ## Roadmap
 
-1. **Now:** button, payment links, link builder, burn helper, Ethereum burn splitter, 13 EVM networks.
-2. **Next:** deploy the splitter on Ethereum, WooCommerce plugin, ShibWallet opening payment links directly, bridge-then-burn in one tap once ShibWallet's CCIP sending is wired up.
+1. **Now:** button, payment links, link builder, burn helper, Ethereum burn splitter, WooCommerce plugin, 13 EVM networks.
+2. **Next:** deploy the splitter on Ethereum, ShibWallet opening payment links directly, bridge-then-burn in one tap once ShibWallet's CCIP sending is wired up.
 3. **Then:** Solana via Solana Pay (SHIB bridged by Sunrise), WalletConnect, more shop platforms.
 4. **Later:** supply-chain provenance on Shibarium.

@@ -11,17 +11,19 @@
     "packages/core",
     "packages/contracts",
     "packages/button",
-    "apps/web"
+    "apps/web",
+    "apps/woocommerce"
   ],
   "scripts": {
     "compile": "node packages/contracts/scripts/compile.mjs",
     "typecheck": "tsc --noEmit",
     "test": "npm run compile && vitest run",
-    "build": "npm run compile && npm run build -w @shibpay/button && npm run build -w @shibpay/web",
+    "build": "npm run compile && npm run build -w @shibpay/button && npm run build -w @shibpay/web && npm run build -w @shibpay/woocommerce",
     "dev": "npm run dev -w @shibpay/web"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
+    "fflate": "^0.8.2",
     "ganache": "^7.9.2",
     "solc": "0.8.24",
     "typescript": "^5.6.0",

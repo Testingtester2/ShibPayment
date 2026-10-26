@@ -63,7 +63,7 @@ function friendlyError(err: unknown, token: string, chain: string): string {
  * asks a wallet for anything and sends nothing: for showing the flow on a website.
  */
 export class ShibPayElement extends HTMLElement {
-  static observedAttributes = ['to', 'amount', 'currency', 'burn', 'order', 'label', 'tokens', 'return-url', 'theme', 'splitter', 'demo'];
+  static observedAttributes = ['to', 'amount', 'currency', 'burn', 'order', 'label', 'tokens', 'return-url', 'theme', 'splitter', 'demo', 'tag'];
 
   private root: ShadowRoot;
   private wallets: WalletInfo[] = [];
@@ -119,7 +119,9 @@ export class ShibPayElement extends HTMLElement {
     this.token = cfg.tokens.includes('SHIB') ? 'SHIB' : cfg.tokens[0];
     if (TOKEN_SYMBOLS.includes(cfg.currency as TokenSymbol)) this.token = cfg.currency as TokenSymbol;
     this.chainId = chainsForToken(this.token)[0].chainId;
-    this.tag = BigInt(1 + Math.floor(Math.random() * 9999)) * 10n ** 12n; // 3rd-6th decimals, see orderTag()
+    // 3rd-6th decimals, see orderTag(). A shop's server can pick it (tag="1234") to tie the payment to its order.
+    const tag = Number(this.getAttribute('tag'));
+    this.tag = BigInt(Number.isInteger(tag) && tag >= 1 && tag <= 9999 ? tag : 1 + Math.floor(Math.random() * 9999)) * 10n ** 12n;
     this.render();
     this.loadPrices(cfg);
     this.checkSplitter(cfg);
