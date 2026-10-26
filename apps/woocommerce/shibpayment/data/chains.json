@@ -13,6 +13,7 @@
   "solana": {
     "mint": "shib5gSoVKPjwkXrxRk7SbQFzb2R9rQB3TgQWYX4RwW",
     "rpcUrls": [
+      "https://solana-rpc.publicnode.com",
       "https://api.mainnet-beta.solana.com"
     ],
     "explorerUrl": "https://solscan.io"

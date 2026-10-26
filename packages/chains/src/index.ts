@@ -236,13 +236,17 @@ export const EVM_CHAINS: EvmChain[] = [
  * SHIB on Solana, bridged from Ethereum by Sunrise (Wormhole Labs), launched
  * 4 October 2026. The mint was copied from Sunrise's SHIB page on sunrise.xyz,
  * which Sunrise's docs name as the source to trust, and matches Jupiter,
- * Solscan and tokens.xyz. Decimals are read from the chain at payment time,
- * never assumed. At least seven other Solana tokens use the SHIB ticker,
+ * Solscan and tokens.xyz. A mint's decimals can never change, so they are
+ * pinned here (Jupiter: 4, classic Token program). The transfer uses
+ * transferChecked, so the chain itself rejects it if they were ever wrong.
+ * At least seven other Solana tokens use the SHIB ticker,
  * shibwifhat (F6qoef…5J1k) among them, so payments are matched by mint only.
  */
 export const SOLANA_SHIB = {
   mint: 'shib5gSoVKPjwkXrxRk7SbQFzb2R9rQB3TgQWYX4RwW',
   bridge: 'Sunrise',
+  decimals: 4,
+  tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
   verified: true,
 } as const;
 
