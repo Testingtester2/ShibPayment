@@ -10,9 +10,15 @@ export const TOKEN_LOGOS: Record<string, string> = {
   TREAT: 'https://assets.coingecko.com/coins/images/53501/large/Treat_blk_200x200.png',
 };
 
+/**
+ * TREAT's only published logo is the red mark on a white disc with "Treat"
+ * written under it. Zoom in on the red mark so it matches the other tokens.
+ */
+export const TREAT_CROP = 'transform:translateY(10%) scale(1.85);transform-origin:50% 40%';
+
 /** A token logo over a lettered circle, so a blocked image still reads as the token. */
 export const tokenLogo = (symbol: string, size = 32) =>
-  `<span class="tlogo" style="--tl:${size}px"><span>${symbol[0]}</span><img src="${TOKEN_LOGOS[symbol]}" alt="" onerror="this.remove()" /></span>`;
+  `<span class="tlogo" style="--tl:${size}px"><span>${symbol[0]}</span><img src="${TOKEN_LOGOS[symbol]}" alt="" onerror="this.remove()"${symbol === 'TREAT' ? ` style="${TREAT_CROP}"` : ''} /></span>`;
 
 /** ShibPayment wordmark: SHIB logo, "Shib" in white, "Payment" in the orange gradient. */
 export const wordmark = (size = 22) =>
