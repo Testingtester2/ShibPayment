@@ -34,6 +34,18 @@
     .dev { display: grid; grid-template-columns: .8fr 1.2fr; gap: 32px; align-items: start; margin-bottom: 40px; }
     .chains { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
     .chains span { font-size: 13px; padding: 6px 10px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-border); color: var(--muted); }
+    @media (max-width: 600px) {
+      .hero { padding: 20px 0 8px !important; gap: 28px; }
+      .hero .actions { margin-top: 20px; }
+      .hero .actions .btn { flex: 1 1 100%; }
+      .hero .pill { font-size: 12px; }
+      .mock { padding: 20px; }
+      .mock .price { font-size: 36px; }
+      .mock .tokens { margin: 16px 0; gap: 6px; }
+      .mock .tok { padding: 10px 2px; font-size: 12px; }
+      .features { margin: 24px 0 40px; }
+      .steps { margin-bottom: 40px; }
+    }
     @media (max-width: 860px) { .hero, .dev { grid-template-columns: 1fr; } .features, .steps { grid-template-columns: 1fr; } .hero { padding-top: 32px; } }
   </style>
 </head>
@@ -41,7 +53,7 @@
   <div class="wrap">
     <nav>
       <a class="wordmark" href="/"><img src="/shib-logo.png" alt="" /><span><span>Shib</span><span class="pay">Payment</span></span></a>
-      <span style="display:flex;gap:18px;align-items:center"><a class="faint navlink" style="font-size:14px" href="/burn.html">Burn helper</a><a class="btn small cta" href="/setup.html">Create a payment link</a></span>
+      <span style="display:flex;gap:18px;align-items:center"><a class="faint navlink" style="font-size:14px" href="/burn.html">Burn helper</a><a class="btn small cta" href="/setup.html"><span class="long">Create a payment link</span><span class="short">Create a link</span></a></span>
     </nav>
 
     <section class="hero">

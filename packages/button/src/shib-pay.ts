@@ -280,6 +280,7 @@ export class ShibPayElement extends HTMLElement {
     }
     if (act === 'injected') return void this.pay((window as unknown as { ethereum?: Eip1193Provider }).ethereum);
     if (act === 'demo') return void this.demoPay();
+    if (act === 'copy') return void this.copyLink();
     if (act === 'qr') return void this.showQr();
     if (act === 'back') {
       this.abort?.abort();
@@ -315,6 +316,22 @@ export class ShibPayElement extends HTMLElement {
       this.message = friendlyError(err, this.token, chain.name);
       this.render();
     }
+  }
+
+  private copied = false;
+
+  private async copyLink() {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      this.copied = true;
+    } catch {
+      window.prompt('Copy this link', location.href);
+    }
+    this.render();
+    setTimeout(() => {
+      this.copied = false;
+      if (this.view === 'qr') this.render();
+    }, 2500);
   }
 
   private get demo() {
@@ -543,16 +560,37 @@ export class ShibPayElement extends HTMLElement {
     qr.addData(data);
     qr.make();
     const svg = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+    const exact = direct ? `It sends exactly <b style="color:#fff">${formatTokenAmount(amount!, token.decimals)} ${this.token}</b> on ${esc(chain.name)}.` : '';
+    const waiting = direct ? '<div class="pulse">Waiting for your payment…</div>' : '';
+
+    if (matchMedia('(pointer: coarse)').matches) {
+      // On a phone a QR of the same screen can't be scanned: hand the checkout to a wallet app instead.
+      const here = location.href;
+      const metamask = `https://metamask.app.link/dapp/${location.host}${location.pathname}${location.search}`;
+      const trust = `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(here)}`;
+      return `${this.summary(cfg, amount)}
+        ${direct ? `<a class="btn" href="${esc(data)}">Open in my wallet app</a><div class="small center" style="margin-top:8px">${exact}</div>` : ''}
+        <div class="label">${direct ? 'Or open this checkout in' : 'Open this checkout in'}</div>
+        <div class="apps">
+          <a class="btn ghost" href="${esc(metamask)}">MetaMask</a>
+          <a class="btn ghost" href="${esc(trust)}">Trust Wallet</a>
+        </div>
+        <button class="btn ghost" data-act="copy">${this.copied ? 'Link copied' : 'Copy link for ShibWallet'}</button>
+        <div class="small center" style="margin-top:8px">In ShibWallet, paste it into the dApp browser and tap Pay there.</div>
+        ${waiting}
+        <details class="other"><summary>Paying from another phone? Show QR</summary>
+          <div class="qr">${svg}<img src="${shibLogo}" alt="" /></div></details>
+        <button class="btn ghost" data-act="back">Back</button>`;
+    }
     return `${this.summary(cfg, amount)}
       <div class="qr" style="margin-top:18px">${svg}<img src="${shibLogo}" alt="" /></div>
       <div class="center">${direct
-        ? `<div class="small">Scan with ShibWallet or any wallet app.<br/>It sends exactly <b style="color:#fff">${formatTokenAmount(amount!, token.decimals)} ${this.token}</b> on ${esc(chain.name)}.</div>
-           <div class="pulse">Waiting for your payment…</div>
-           ${matchMedia('(pointer: coarse)').matches ? `<a class="btn" href="${esc(data)}">Open in my wallet app</a>` : ''}`
+        ? `<div class="small">Scan with ShibWallet or any wallet app.<br/>${exact}</div>${waiting}`
         : `<div class="small">Scan to open this checkout inside your wallet app's browser (ShibWallet, MetaMask, Trust…), then tap Pay there.</div>`}
       </div>
       <button class="btn ghost" data-act="back">Back</button>`;
   }
+
 }
 
 if (!customElements.get('shib-pay')) customElements.define('shib-pay', ShibPayElement);

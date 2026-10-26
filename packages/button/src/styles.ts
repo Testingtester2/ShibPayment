@@ -47,7 +47,7 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid
 }
 @media (max-width: 480px) {
   .backdrop { align-items: flex-end; padding: 0; }
-  .sheet { max-width: none; border-radius: 24px 24px 0 0; max-height: 92vh; animation: up .25s cubic-bezier(.2,.8,.2,1); }
+  .sheet { max-width: none; border-radius: 24px 24px 0 0; max-height: 92vh; max-height: 92dvh; padding-bottom: env(safe-area-inset-bottom); animation: up .25s cubic-bezier(.2,.8,.2,1); }
 }
 @keyframes fade { from { opacity: 0 } }
 @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(.98) } }
@@ -130,6 +130,11 @@ header { position: relative; display: flex; align-items: center; justify-content
 .receipt span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
 .btn { display: flex; align-items: center; justify-content: center; width: 100%; height: 52px; margin-top: 16px; border-radius: 16px; font-weight: 700; font-size: 16px; background: var(--grad); color: #fff; box-shadow: 0 4px 16px var(--glow-strong); text-decoration: none; }
 .btn.ghost { background: var(--glass); border: 1px solid var(--glass-border); box-shadow: none; color: var(--text); }
+.apps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.apps .btn { margin-top: 0; }
+.other { margin-top: 16px; text-align: center; }
+.other summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 10px; }
+.other .qr { margin-top: 8px; }
 .link { display: inline-block; margin-top: 12px; color: var(--amber); font-size: 14px; font-weight: 600; text-decoration: none; }
 .link:hover { text-decoration: underline; }
 .err { color: var(--red); }
