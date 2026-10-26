@@ -1,5 +1,9 @@
 import { parsePaymentLink } from '@shibpay/core';
-import '@shibpay/button';
+import { ShibPayElement } from '@shibpay/button';
+
+// Reown (WalletConnect) project for shibpayments.shibfun.app; it only works on domains allowed in its dashboard.
+const WALLETCONNECT_PROJECT_ID = 'baa20aa26d36f8ba686135b5fac6bca8';
+ShibPayElement.walletConnectScript = '/shib-pay-walletconnect.js';
 
 const box = document.getElementById('box')!;
 
@@ -29,6 +33,7 @@ try {
   if (cfg.order) btn.setAttribute('order', cfg.order);
   if (cfg.label) btn.setAttribute('label', cfg.label);
   if (cfg.returnUrl) btn.setAttribute('return-url', cfg.returnUrl);
+  btn.setAttribute('walletconnect', WALLETCONNECT_PROJECT_ID);
 
   box.append(
     text('div', 'muted', cfg.label ? `Pay ${cfg.label}` : 'Payment request'),

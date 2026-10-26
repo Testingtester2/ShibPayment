@@ -27,12 +27,19 @@ interface Config {
   /** Shop's Solana wallet: offers SHIB on Solana when set. */
   sol?: string;
   solanaRpc?: string;
+  /** Reown (WalletConnect) project ID: offers phone wallets over WalletConnect when set. */
+  walletConnect?: string;
 }
 
 /** `solana` set: `hash` is a Solana signature and `chainId` is unused. */
 interface Paid { hash: string; chainId: number; amount: bigint; payer: string; mode: BurnMode; burned: bigint; pledged: bigint; solana?: boolean }
 
 const QUOTE_MS = 15 * 60_000;
+
+// shib-pay-walletconnect.js sits next to this script; it is large, so it is fetched only when used.
+const SCRIPT_SRC = (typeof document !== 'undefined' && (document.currentScript as HTMLScriptElement | null)?.src) || 'https://shibpayments.shibfun.app/shib-pay.js';
+type WalletConnectModule = typeof import('./walletconnect');
+const loadWalletConnect = (): Promise<WalletConnectModule> => import(/* @vite-ignore */ ShibPayElement.walletConnectScript);
 
 const esc = (s: unknown) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -62,6 +69,8 @@ function friendlyError(err: unknown, token: string, chain: string): string {
  * <shib-pay to="0x..." amount="12.50" currency="USD" burn="2" order="A-17" label="Ryoshi's Dorado Stall"></shib-pay>
  *
  * Add sol="<Solana address>" to also take SHIB on Solana (Solana Pay; solana-rpc="..." to use your own RPC).
+ * Add walletconnect="<Reown project ID>" to offer phone wallets (Trust, Rainbow, MetaMask Mobile…) over
+ * WalletConnect. Allow your site's domain in the Reown dashboard.
  *
  * Fires `shibpay:paid` (bubbles, composed) with { txHash, chainId, token, amount, burnMode, burned, pledged, payer, order }.
  * On Solana, chainId is "solana", txHash is the signature and `reference` is the checkout's Solana Pay reference.
@@ -72,7 +81,10 @@ function friendlyError(err: unknown, token: string, chain: string): string {
  * asks a wallet for anything and sends nothing: for showing the flow on a website.
  */
 export class ShibPayElement extends HTMLElement {
-  static observedAttributes = ['to', 'amount', 'currency', 'burn', 'order', 'label', 'tokens', 'return-url', 'theme', 'splitter', 'demo', 'tag', 'sol', 'solana-rpc', 'reference'];
+  /** Where WalletConnect support is loaded from. Defaults to next to shib-pay.js. */
+  static walletConnectScript = new URL('shib-pay-walletconnect.js', SCRIPT_SRC).href;
+
+  static observedAttributes = ['to', 'amount', 'currency', 'burn', 'order', 'label', 'tokens', 'return-url', 'theme', 'splitter', 'demo', 'tag', 'sol', 'solana-rpc', 'reference', 'walletconnect'];
 
   private root: ShadowRoot;
   private wallets: WalletInfo[] = [];
@@ -192,6 +204,7 @@ export class ShibPayElement extends HTMLElement {
         splitter: splitter ? validateMerchantAddress(splitter) : undefined,
         sol: sol ? validateSolanaAddress(sol) : undefined,
         solanaRpc,
+        walletConnect: this.getAttribute('walletconnect')?.trim() || undefined,
       };
     } catch (err) {
       return (err as Error).message;
@@ -330,6 +343,7 @@ export class ShibPayElement extends HTMLElement {
     }
     if (act === 'solwallet') return void this.paySolana(this.solWallets[Number(target.dataset.i)]);
     if (act === 'injected') return void this.pay((window as unknown as { ethereum?: Eip1193Provider }).ethereum);
+    if (act === 'walletconnect') return void this.payWalletConnect();
     if (act === 'demo') return void this.demoPay();
     if (act === 'copy') return void this.copyLink();
     if (act === 'qr') return void this.showQr();
@@ -369,6 +383,40 @@ export class ShibPayElement extends HTMLElement {
       this.message = friendlyError(err, this.token, chain.name);
       this.render();
     }
+  }
+
+  private async payWalletConnect() {
+    const cfg = this.config();
+    if (typeof cfg === 'string' || !cfg.walletConnect) return;
+    const chain = getChain(this.chainId)!;
+    this.view = 'progress';
+    this.step = 'connecting';
+    this.seen.clear();
+    this.render();
+    let provider: Eip1193Provider;
+    try {
+      const wc = await loadWalletConnect();
+      const chains = [chain, ...chainsForToken(this.token).filter((c) => c.chainId !== chain.chainId)];
+      provider = await wc.connectWalletConnect({
+        projectId: cfg.walletConnect,
+        chainIds: chains.map((c) => c.chainId),
+        rpcMap: Object.fromEntries(chains.map((c) => [c.chainId, c.rpcUrls[0]])),
+        zIndex: 2147483600,
+      }) as unknown as Eip1193Provider;
+    } catch (err) {
+      // Closing Reown's wallet picker is not an error: back to the choices.
+      const text = String((err as Error)?.message ?? err).toLowerCase();
+      if (text.includes('closed') || text.includes('rejected') || text.includes('reset')) {
+        this.view = 'choose';
+        this.render();
+        return;
+      }
+      this.view = 'error';
+      this.message = `Couldn't open WalletConnect: ${(err as Error)?.message ?? err}`;
+      this.render();
+      return;
+    }
+    await this.pay(provider);
   }
 
   private async paySolana(wallet: SolanaWallet | undefined) {
@@ -603,7 +651,10 @@ export class ShibPayElement extends HTMLElement {
     const fallback = !this.solana && !this.wallets.length && injected
       ? `<button class="wallet primary" data-act="injected" ${canPay ? '' : 'disabled'}><span class="ico">${WALLET}</span>
           <span class="grow">Browser wallet<span class="sub">Pay on ${esc(chain)}</span></span>${CHEVRON}</button>` : '';
-    const noneFound = this.solana ? !this.solWallets.length : !this.wallets.length && !injected;
+    const wc = !this.solana && cfg.walletConnect
+      ? `<button class="wallet ${!this.wallets.length && !injected ? 'primary' : ''}" data-act="walletconnect" ${canPay ? '' : 'disabled'}><span class="ico">${PHONE}</span>
+          <span class="grow">WalletConnect<span class="sub">${touch ? 'MetaMask, Trust, Rainbow and other wallet apps' : 'Scan with MetaMask, Trust or another phone wallet'}</span></span>${CHEVRON}</button>` : '';
+    const noneFound = this.solana ? !this.solWallets.length : !this.wallets.length && !injected && !wc;
     const phoneSub = this.solana
       ? touch ? 'Open in Phantom, Solflare or another Solana wallet' : 'Scan a QR code with Phantom or Solflare'
       : touch ? 'Open in ShibWallet or scan the QR' : 'Scan a QR code with ShibWallet';
@@ -616,7 +667,7 @@ export class ShibPayElement extends HTMLElement {
       <div class="net"><select name="chain" aria-label="Network">${options}</select></div>
       <div class="hint">Pick the network where your ${this.token} is.</div>
       <div class="label">How do you want to pay?</div>
-      <div class="wallets">${walletRows}${fallback}${phone}</div>
+      <div class="wallets">${walletRows}${fallback}${wc}${phone}</div>
       <div class="foot"><span>No fees</span><i class="dot"></i><span>Paid straight to the shop</span><i class="dot"></i><span>Non-custodial</span></div>`;
   }
 

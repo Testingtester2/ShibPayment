@@ -74,6 +74,7 @@ One button covers the whole checkout: have your page fill `amount` and `order` f
 | `sol` | Optional Solana wallet. Adds Solana to the networks for SHIB, paid with Solana Pay. |
 | `reference` | Optional Solana Pay reference (a base58 public key). Your server's key for this order, so it can find the payment by it. Random when left out. |
 | `solana-rpc` | Optional Solana RPC URL. The public one works but is rate-limited; a free Helius or QuickNode key is steadier for a busy shop. |
+| `walletconnect` | Optional [Reown](https://dashboard.reown.com) project ID. Adds a WalletConnect choice so buyers can pay from MetaMask Mobile, Trust, Rainbow and other phone wallets. Add your site's exact domain (or `*.yourdomain.com`) to the project's allowlist. The extra code (`shib-pay-walletconnect.js`, about 600 KB gzipped) loads from next to `shib-pay.js`, and only when a buyer picks WalletConnect. Hosted payment links already have it. |
 | `amount`, `currency` | Price. `currency` is a fiat code (USD, EUR, NGN, INR…) converted at checkout via CoinGecko, or a token symbol (`SHIB`) to charge an exact token amount. |
 | `burn` | Percent of each sale to burn, 0 to 100 (default 0). Burned in the payment on Ethereum; a pledge on other networks. |
 | `order` | Your order reference. With a burn, it is recorded on-chain in the payment event. |

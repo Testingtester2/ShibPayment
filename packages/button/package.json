@@ -6,10 +6,11 @@
   "type": "module",
   "main": "./dist/shib-pay.js",
   "scripts": {
-    "build": "vite build"
+    "build": "vite build && vite build -c vite.walletconnect.config.ts"
   },
   "dependencies": {
     "@shibpay/core": "0.1.0",
+    "@walletconnect/ethereum-provider": "^2.26.0",
     "qrcode-generator": "^1.4.4"
   }
 }
