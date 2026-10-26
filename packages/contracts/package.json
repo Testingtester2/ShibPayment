@@ -1,0 +1,15 @@
+{
+  "name": "@shibpay/contracts",
+  "version": "0.1.0",
+  "description": "ShibPaySplitter: an ownerless, fee-free contract that splits a payment between a merchant and the burn address.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "deploy": "node scripts/deploy.mjs"
+  },
+  "dependencies": {
+    "viem": "^2.57.11"
+  }
+}

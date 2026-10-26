@@ -1,0 +1,30 @@
+{
+  "name": "shibpayments",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Free, non-custodial Pay with SHIB checkout: button, payment links and an optional on-chain burn.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/chains",
+    "packages/core",
+    "packages/contracts",
+    "packages/button",
+    "apps/web"
+  ],
+  "scripts": {
+    "compile": "node packages/contracts/scripts/compile.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run compile && vitest run",
+    "build": "npm run compile && npm run build -w @shibpay/button && npm run build -w @shibpay/web",
+    "dev": "npm run dev -w @shibpay/web"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "ganache": "^7.9.2",
+    "solc": "0.8.24",
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0",
+    "vitest": "^2.1.0"
+  }
+}

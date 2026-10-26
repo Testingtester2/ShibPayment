@@ -1,0 +1,9 @@
+{
+  "name": "@shibpay/chains",
+  "version": "0.1.0",
+  "description": "Chain and token registry for ShibPayments (SHIB, BONE, LEASH, TREAT on 13 EVM chains, SHIB on Solana).",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}

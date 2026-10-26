@@ -1,0 +1,15 @@
+{
+  "name": "@shibpay/button",
+  "version": "0.1.0",
+  "description": "<shib-pay> web component: a drop-in Pay with SHIB button for any website.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/shib-pay.js",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@shibpay/core": "0.1.0",
+    "qrcode-generator": "^1.4.4"
+  }
+}

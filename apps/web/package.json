@@ -1,0 +1,17 @@
+{
+  "name": "@shibpay/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ShibPayment website: merchant link builder and hosted payment page.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@shibpay/button": "0.1.0",
+    "@shibpay/core": "0.1.0",
+    "qrcode-generator": "^1.4.4"
+  }
+}
