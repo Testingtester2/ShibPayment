@@ -196,8 +196,12 @@ export async function solanaRpc<T>(rpc: SolanaRpc, method: string, params: unkno
       failure = new Error(`Solana network unavailable (${res.status ?? 'network'})`);
       continue;
     }
-    const j = (await res.json()) as { result?: T; error?: { message: string } };
-    if (j.error) throw new Error(j.error.message);
+    // A provider can also refuse a single method (HTTP 200 with an error); the next one may answer it.
+    const j = (await res.json().catch(() => ({ error: { message: 'Solana network unavailable' } }))) as { result?: T; error?: { message: string } };
+    if (j.error) {
+      failure = new Error(j.error.message);
+      continue;
+    }
     return j.result as T;
   }
   throw failure instanceof Error ? failure : new Error('Solana network unavailable');

@@ -154,6 +154,12 @@ describe('RPC', () => {
     expect(urls).toEqual([...SOLANA_RPCS]);
   });
 
+  it('falls back when a provider refuses the method, and reports the last error', async () => {
+    let n = 0;
+    const refuse: PostFetch = async () => ({ ok: true, json: async () => ({ error: { message: `method disabled ${++n}` } }) });
+    await expect(solanaRpc({ fetchFn: refuse }, 'getSignaturesForAddress', [])).rejects.toThrow(`method disabled ${SOLANA_RPCS.length}`);
+  });
+
   it("sticks to the shop's own RPC", async () => {
     const urls: string[] = [];
     const fetchFn: PostFetch = async (url) => { urls.push(url); return { ok: false, status: 403, json: async () => ({}) }; };
