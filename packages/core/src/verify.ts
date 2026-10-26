@@ -1,8 +1,9 @@
 import { decodeEventLog, getAddress, isAddressEqual, zeroAddress, type Log } from 'viem';
-import { getToken, type TokenSymbol } from '@shibpay/chains';
+import { BURN_CHAIN_ID, getToken, type TokenSymbol } from '@shibpay/chains';
 import { SPLITTER_ADDRESS, splitterAbi } from '@shibpay/contracts';
 import { erc20Abi } from './abi';
-import { splitBurn } from './amounts';
+import { splitBurn, type BurnMode } from './amounts';
+import { splitterAvailable } from './pay';
 import { orderIdHash } from './request';
 
 export interface ExpectedPayment {
@@ -11,7 +12,11 @@ export interface ExpectedPayment {
   merchant: string;
   /** Minimum total paid (burn included), in smallest units. */
   amount: bigint;
-  /** Burn the merchant asked for. The payment must burn at least this share. */
+  /**
+   * Burn the merchant asked for, in basis points. On Ethereum, once the
+   * splitter is deployed, the payment must burn at least this share. Elsewhere
+   * the merchant is paid in full and the share is reported as `pledged`.
+   */
   burnBps: number;
   /** When set, a splitter payment must carry this order reference. */
   orderId?: string;
@@ -21,7 +26,14 @@ export interface ExpectedPayment {
 }
 
 export type VerifyResult =
-  | { ok: true; payer: `0x${string}`; amount: bigint; burned: bigint; confirmations: number; viaSplitter: boolean }
+  | {
+      ok: true; payer: `0x${string}`; amount: bigint; confirmations: number; viaSplitter: boolean;
+      burnMode: BurnMode;
+      /** Burned in the payment transaction. */
+      burned: bigint;
+      /** The merchant's own burn, still to do on Ethereum. */
+      pledged: bigint;
+    }
   | { ok: false; reason: string; retry: boolean };
 
 /** The subset of a viem PublicClient that verification needs. */
@@ -31,6 +43,7 @@ export interface ReadClient {
   }>;
   getTransaction(a: { hash: `0x${string}` }): Promise<{ to: `0x${string}` | null; value: bigint; from: `0x${string}` }>;
   getBlockNumber(a?: { cacheTime?: number }): Promise<bigint>;
+  getCode(a: { address: `0x${string}` }): Promise<`0x${string}` | undefined>;
 }
 
 const fail = (reason: string, retry = false): VerifyResult => ({ ok: false, reason, retry });
@@ -73,17 +86,26 @@ export async function verifyPayment(client: ReadClient, txHash: `0x${string}`, e
     if (expected.orderId !== undefined && a.orderId !== orderIdHash(expected.orderId)) continue;
     if (a.amount < expected.amount) return fail('Paid less than the price');
     if (a.burned < splitBurn(a.amount, expected.burnBps).burned) return fail('Burned less than the merchant asked for');
-    return { ok: true, payer: a.payer, amount: a.amount, burned: a.burned, confirmations, viaSplitter: true };
+    return { ok: true, payer: a.payer, amount: a.amount, confirmations, viaSplitter: true, burnMode: 'in-tx', burned: a.burned, pledged: 0n };
   }
 
-  // 2. A plain transfer. Only acceptable when the merchant asked for no burn.
-  if (expected.burnBps > 0) return fail('No burn payment to this merchant in that transaction');
+  // 2. A plain transfer. With a burn, that's the merchant's pledge, except on
+  // Ethereum once the splitter is live, where the burn must be in the payment.
+  if (expected.burnBps > 0 && expected.chainId === BURN_CHAIN_ID && (await splitterAvailable(client, splitter))) {
+    return fail('No burn payment to this merchant in that transaction');
+  }
+  const plain = (payer: `0x${string}`, amount: bigint): VerifyResult => ({
+    ok: true, payer, amount, confirmations, viaSplitter: false,
+    burnMode: expected.burnBps > 0 ? 'pledge' : 'none',
+    burned: 0n,
+    pledged: splitBurn(amount, expected.burnBps).burned,
+  });
 
   if (token.native) {
     const tx = await client.getTransaction({ hash: txHash });
     if (!tx.to || !isAddressEqual(tx.to, merchant)) return fail('That transaction does not pay this merchant');
     if (tx.value < expected.amount) return fail('Paid less than the price');
-    return { ok: true, payer: tx.from, amount: tx.value, burned: 0n, confirmations, viaSplitter: false };
+    return plain(tx.from, tx.value);
   }
 
   let total = 0n;
@@ -102,5 +124,5 @@ export async function verifyPayment(client: ReadClient, txHash: `0x${string}`, e
   }
   if (!payer) return fail('That transaction does not pay this merchant');
   if (total < expected.amount) return fail('Paid less than the price');
-  return { ok: true, payer, amount: total, burned: 0n, confirmations, viaSplitter: false };
+  return plain(payer, total);
 }

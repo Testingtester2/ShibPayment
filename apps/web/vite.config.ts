@@ -37,7 +37,7 @@ export default defineConfig({
   build: {
     target: 'es2020',
     rollupOptions: {
-      input: { index: here('index.html'), setup: here('setup.html'), pay: here('pay.html') },
+      input: { index: here('index.html'), setup: here('setup.html'), pay: here('pay.html'), burn: here('burn.html') },
     },
   },
 });

@@ -1,10 +1,10 @@
 import qrcode from 'qrcode-generator';
 import { parseUnits } from 'viem';
 import {
-  TOKEN_SYMBOLS, BurnUnavailableError, InsufficientBalanceError, chainsForToken, explorerTxUrl, fetchPrices, findPayment, formatTokenAmount,
-  getChain, getToken, payWithWallet, percentToBps, poll, publicClientFor, quoteAmount, splitBurn,
+  BURN_CHAIN_ID, TOKEN_SYMBOLS, InsufficientBalanceError, burnMode, chainsForToken, explorerTxUrl, fetchPrices, findPayment, formatTokenAmount,
+  getChain, getToken, payWithWallet, percentToBps, poll, publicClientFor, quoteAmount,
   splitterAvailable, toEip681, validateMerchantAddress, verifyPayment,
-  type Eip1193Provider, type PayStep, type TokenSymbol,
+  type BurnMode, type Eip1193Provider, type PayStep, type TokenSymbol,
 } from '@shibpay/core';
 import { CHECK, CHEVRON, CLOSE, FLAME, PHONE, WALLET, shibLogo, tokenLogo, wordmark } from './brand';
 import { STYLES } from './styles';
@@ -23,6 +23,8 @@ interface Config {
   returnUrl?: string;
   splitter?: `0x${string}`;
 }
+
+interface Paid { hash: `0x${string}`; chainId: number; amount: bigint; payer: string; mode: BurnMode; burned: bigint; pledged: bigint }
 
 const QUOTE_MS = 15 * 60_000;
 
@@ -43,7 +45,7 @@ function friendlyError(err: unknown, token: string, chain: string): string {
   if (e.code === 4001 || e.cause?.code === 4001 || e.name === 'UserRejectedRequestError' || text.includes('user rejected') || text.includes('denied')) {
     return 'You cancelled in your wallet. Nothing was sent.';
   }
-  if (err instanceof BurnUnavailableError || err instanceof InsufficientBalanceError) return err.message;
+  if (err instanceof InsufficientBalanceError) return err.message;
   if (text.includes('insufficient funds') || text.includes('exceeds balance') || text.includes('transfer amount exceeds')) {
     return `Not enough ${token} or network fee on ${chain}. Top up, or pick another token or network.`;
   }
@@ -53,7 +55,8 @@ function friendlyError(err: unknown, token: string, chain: string): string {
 /**
  * <shib-pay to="0x..." amount="12.50" currency="USD" burn="2" order="A-17" label="Granny's Shop"></shib-pay>
  *
- * Fires `shibpay:paid` (bubbles, composed) with { txHash, chainId, token, amount, burned, payer, order }.
+ * Fires `shibpay:paid` (bubbles, composed) with { txHash, chainId, token, amount, burnMode, burned, pledged, payer, order }.
+ * On Ethereum the burn happens in the payment; elsewhere the shop is paid in full and `pledged` is theirs to burn.
  * Your server must still check the payment with verifyPayment() before shipping anything.
  */
 export class ShibPayElement extends HTMLElement {
@@ -72,7 +75,7 @@ export class ShibPayElement extends HTMLElement {
   private splitterOk = new Map<number, boolean>();
   private step: PayStep | null = null;
   private message = '';
-  private result: { hash: `0x${string}`; chainId: number; amount: bigint; burned: bigint; payer: string } | null = null;
+  private result: Paid | null = null;
   private abort: AbortController | null = null;
   private timer: number | undefined;
   private lastFocus: Element | null = null;
@@ -164,6 +167,11 @@ export class ShibPayElement extends HTMLElement {
     return TOKEN_SYMBOLS.includes(cfg.currency as TokenSymbol);
   }
 
+  /** Burned in the payment (Ethereum, splitter live), pledged by the shop, or none. */
+  private mode(cfg: Config): BurnMode {
+    return burnMode(this.chainId, cfg.burnBps, this.splitterOk.get(this.chainId) === true);
+  }
+
   /** Amount the buyer pays in the selected token, or null while the price loads. */
   private quote(cfg: Config): bigint | null {
     const t = getToken(this.chainId, this.token);
@@ -175,7 +183,7 @@ export class ShibPayElement extends HTMLElement {
         : null;
     if (base === null) return null;
     // Plain transfers carry no order number, so each order gets a unique amount.
-    return cfg.burnBps > 0 ? base : base + this.tag;
+    return this.mode(cfg) === 'in-tx' ? base : base + this.tag;
   }
 
   private async loadPrices(cfg: Config) {
@@ -201,7 +209,7 @@ export class ShibPayElement extends HTMLElement {
   }
 
   private async checkSplitter(cfg: Config) {
-    if (cfg.burnBps === 0 || this.splitterOk.has(this.chainId)) return;
+    if (cfg.burnBps === 0 || this.chainId !== BURN_CHAIN_ID || this.splitterOk.has(this.chainId)) return;
     const id = this.chainId;
     try {
       this.splitterOk.set(id, await splitterAvailable(publicClientFor(id), cfg.splitter));
@@ -297,7 +305,7 @@ export class ShibPayElement extends HTMLElement {
           this.render();
         },
       });
-      this.finish(cfg, { hash: res.hash, chainId: res.chainId, amount, payer: res.payer });
+      this.finish(cfg, { hash: res.hash, chainId: res.chainId, amount, payer: res.payer, mode: res.burnMode, burned: res.burned, pledged: res.pledged });
     } catch (err) {
       this.view = 'error';
       this.message = friendlyError(err, this.token, chain.name);
@@ -312,7 +320,7 @@ export class ShibPayElement extends HTMLElement {
     this.render();
     const amount = this.quote(cfg);
     const token = getToken(this.chainId, this.token);
-    if (cfg.burnBps > 0 || !token || token.native || amount === null) return;
+    if (this.mode(cfg) === 'in-tx' || !token || token.native || amount === null) return;
 
     // A plain transfer: watch the chain for this order's unique amount.
     this.abort?.abort();
@@ -327,24 +335,24 @@ export class ShibPayElement extends HTMLElement {
       );
       if (!hash || abort.signal.aborted) return;
       const v = await poll(async () => {
-        const r = await verifyPayment(client, hash, { chainId, token: sym, merchant: cfg.to, amount, burnBps: 0, minConfirmations: 1 });
+        const r = await verifyPayment(client, hash, { chainId, token: sym, merchant: cfg.to, amount, burnBps: cfg.burnBps, minConfirmations: 1 });
         return r.ok ? r : null;
       }, { signal: abort.signal, intervalMs: 3000, timeoutMs: 5 * 60_000 });
-      if (v) this.finish(cfg, { hash, chainId, amount: v.amount, payer: v.payer });
+      if (v) this.finish(cfg, { hash, chainId, amount: v.amount, payer: v.payer, mode: v.burnMode, burned: v.burned, pledged: v.pledged });
     } catch {
       // Watching is a convenience; the merchant's server verification is the source of truth.
     }
   }
 
-  private finish(cfg: Config, r: { hash: `0x${string}`; chainId: number; amount: bigint; payer: string }) {
-    const burned = splitBurn(r.amount, cfg.burnBps).burned;
-    this.result = { ...r, burned };
+  private finish(cfg: Config, r: Paid) {
+    this.result = r;
     this.view = 'done';
     this.render();
     this.dispatchEvent(new CustomEvent('shibpay:paid', {
       bubbles: true, composed: true,
       detail: {
-        txHash: r.hash, chainId: r.chainId, token: this.token, amount: r.amount.toString(), burned: burned.toString(),
+        txHash: r.hash, chainId: r.chainId, token: this.token, amount: r.amount.toString(),
+        burnMode: r.mode, burned: r.burned.toString(), pledged: r.pledged.toString(),
         payer: r.payer, order: cfg.order, merchant: cfg.to,
       },
     }));
@@ -397,15 +405,23 @@ export class ShibPayElement extends HTMLElement {
     return `${cfg.label ? `<div class="merchant">${esc(cfg.label)}</div>` : '<div class="merchant">Checkout</div>'}
       <div class="price">${priced ? `${esc(cfg.amount)} ${esc(cfg.currency)}` : esc(fiat(cfg.amount, cfg.currency))}</div>
       ${priced ? '' : `<div class="token-amount">${tokenLine}</div><div class="lock">${amount !== null ? 'Price held for 15:00' : ''}</div>`}
-      ${cfg.burnBps > 0 ? `<div class="burn">${FLAME}${esc(cfg.burnBps / 100)}% of this payment is burned forever</div>` : ''}`;
+      ${this.burnLine(cfg)}`;
+  }
+
+  private burnLine(cfg: Config): string {
+    const pct = esc(cfg.burnBps / 100);
+    const mode = this.mode(cfg);
+    if (mode === 'none') return '';
+    return mode === 'in-tx'
+      ? `<div class="burn">${FLAME}${pct}% of this payment is burned forever</div>`
+      : `<div class="burn" title="Burns count on Ethereum, so the shop burns its share there.">${FLAME}${cfg.label ? esc(cfg.label) : 'The shop'} burns ${pct}% of this sale</div>`;
   }
 
   private chooseView(cfg: Config): string {
     const amount = this.quote(cfg);
     const chains = chainsForToken(this.token);
     const chain = getChain(this.chainId)!;
-    const burnBlocked = cfg.burnBps > 0 && this.splitterOk.get(this.chainId) === false;
-    const canPay = amount !== null && !burnBlocked;
+    const canPay = amount !== null;
 
     const tokens = cfg.tokens.map((s) => {
       const disabled = this.priceState === 'ok' && !this.pricedInToken(cfg) && !this.prices[s];
@@ -429,15 +445,14 @@ export class ShibPayElement extends HTMLElement {
       <div class="label">Pay with</div><div class="tokens">${tokens}</div>
       <div class="label">Network</div>
       <div class="net"><select name="chain" aria-label="Network">${chains.map((c) => `<option value="${c.chainId}" ${c.chainId === this.chainId ? 'selected' : ''}>${esc(c.name)}${c.chainId === 109 ? ' (lowest fees)' : ''}</option>`).join('')}</select></div>
-      <div class="hint ${burnBlocked ? 'err' : ''}">${burnBlocked ? `Burning isn't live on ${esc(chain.name)} yet. Pick another network.` : `Pick the network where your ${this.token} is.`}</div>
+      <div class="hint">Pick the network where your ${this.token} is.</div>
       <div class="label">How do you want to pay?</div>
       <div class="wallets">${walletRows}${fallback}${phone}</div>
       <div class="foot"><span>No fees</span><i class="dot"></i><span>Paid straight to the shop</span><i class="dot"></i><span>Non-custodial</span></div>`;
   }
 
   private progressView(cfg: Config): string {
-    const t = getToken(this.chainId, this.token)!;
-    const twoSteps = cfg.burnBps > 0 && !t.native;
+    const twoSteps = this.mode(cfg) === 'in-tx';
     const text: Record<PayStep, [string, string]> = {
       'connecting': ['Connect your wallet', 'Approve the connection in your wallet.'],
       'switching-chain': [`Switch to ${getChain(this.chainId)!.name}`, 'Your wallet may ask to change network.'],
@@ -462,6 +477,7 @@ export class ShibPayElement extends HTMLElement {
       <div class="receipt">
         <div><span>Paid</span><span>${formatTokenAmount(r.amount, t.decimals)} ${this.token}</span></div>
         ${r.burned > 0n ? `<div><span>Burned forever</span><span style="color:var(--amber)">${formatTokenAmount(r.burned, t.decimals)} ${this.token}</span></div>` : ''}
+        ${r.pledged > 0n ? `<div><span>Shop will burn</span><span style="color:var(--amber)">${formatTokenAmount(r.pledged, t.decimals)} ${this.token}</span></div>` : ''}
         <div><span>Network</span><span>${esc(getChain(r.chainId)!.name)}</span></div>
         <div><span>Order</span><span>${esc(cfg.order)}</span></div>
       </div>
@@ -478,7 +494,7 @@ export class ShibPayElement extends HTMLElement {
     const amount = this.quote(cfg);
     const token = getToken(this.chainId, this.token)!;
     const chain = getChain(this.chainId)!;
-    const direct = cfg.burnBps === 0 && !token.native && amount !== null;
+    const direct = this.mode(cfg) !== 'in-tx' && !token.native && amount !== null;
     const data = direct ? toEip681({ chainId: this.chainId, token: this.token, merchant: cfg.to, amount: amount! }) : location.href;
     const qr = qrcode(0, 'M');
     qr.addData(data);
