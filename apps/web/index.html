@@ -87,19 +87,26 @@
     <section id="developers" class="dev">
       <div>
         <h2>For websites</h2>
-        <p class="muted">One script tag and one element. Works in any site builder that allows custom HTML. Your server confirms each payment on-chain before shipping.</p>
+        <p class="muted">One script tag and one button on your checkout page. Fill in the price and order number from the cart, the way your shop already prints its total, and the button charges whatever is in the basket. Your server confirms each payment on-chain before shipping.</p>
+        <p class="muted">No cart? Make one button or <a href="/setup.html">payment link</a> per item. On WooCommerce, the plugin (coming next) does all of this for you.</p>
         <div class="chains">
           <span>Shibarium</span><span>Ethereum</span><span>BNB Chain</span><span>Arbitrum</span><span>OP Mainnet</span><span>Base</span><span>Polygon</span><span>Scroll</span><span>Linea</span><span>Celo</span><span>Gnosis</span><span>Mantle</span><span>Avalanche</span>
         </div>
       </div>
       <pre><code>&lt;script src="<span id="origin">https://YOUR-SHIBPAYMENT-SITE</span>/shib-pay.js"&gt;&lt;/script&gt;
 
+&lt;!-- On your checkout page, filled from the cart --&gt;
 &lt;shib-pay
   to="0xYourWalletAddress"
-  amount="330" currency="ZAR"
-  burn="2" order="A-1017"
+  amount="{{ cart.total }}" currency="ZAR"
+  order="{{ order.id }}" burn="2"
   label="Ryoshi's Dorado Stall"&gt;
 &lt;/shib-pay&gt;
+
+&lt;script&gt;
+  // Cart changed in the page? Update the button.
+  button.setAttribute('amount', newTotal);
+&lt;/script&gt;
 
 &lt;script&gt;
   document.addEventListener('shibpay:paid', (e) =&gt; {
