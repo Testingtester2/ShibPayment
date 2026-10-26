@@ -13,7 +13,11 @@
   <style>
     .hero { padding: 64px 0 40px; display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; }
     .hero .actions { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+    .mockwrap { margin: 0; }
     .mock { position: relative; padding: 28px; }
+    .quote { margin-top: 14px; text-align: center; font-size: 14px; font-style: italic; color: var(--muted); }
+    .quote span { display: block; margin-top: 4px; font-style: normal; font-size: 12px; color: var(--faint); }
+    .quote span::before { content: "— "; }
     .mock .price { font-size: 44px; font-weight: 800; letter-spacing: -.02em; text-align: center; }
     .mock .sub { text-align: center; color: var(--muted); }
     .mock .tokens { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 20px 0; }
@@ -47,19 +51,22 @@
           <a class="btn ghost" href="#developers">Add it to a website</a>
         </div>
       </div>
+      <figure class="mockwrap">
       <div class="card mock" aria-hidden="true">
-        <div class="sub">Granny's Bakery</div>
-        <div class="price">$12.50</div>
-        <div class="sub"><b style="color:#fff">1,012,965.42</b> SHIB</div>
-        <div style="text-align:center;margin-top:12px"><span class="pill">Granny's Bakery burns 2% of every sale</span></div>
+        <div class="sub">Ryoshi's Dorado Stall</div>
+        <div class="price">R330.00</div>
+        <div class="sub"><b style="color:#fff">1,452,380.95</b> SHIB</div>
+        <div style="text-align:center;margin-top:12px"><span class="pill">Ryoshi's Dorado Stall burns 2% of every sale</span></div>
         <div class="tokens">
           <div class="tok on"><span class="tlogo"><img src="/shib-logo.png" alt="" /></span>SHIB</div>
           <div class="tok"><span class="tlogo"><span>B</span><img src="https://assets.coingecko.com/coins/images/16916/large/bone_icon.png" alt="" onerror="this.remove()" /></span>BONE</div>
           <div class="tok"><span class="tlogo"><span>L</span><img src="https://assets.coingecko.com/coins/images/15802/large/Leash.png" alt="" onerror="this.remove()" /></span>LEASH</div>
           <div class="tok"><span class="tlogo"><span>T</span><img src="https://assets.coingecko.com/coins/images/53501/large/Treat_blk_200x200.png" alt="" onerror="this.remove()" style="transform:translateY(10%) scale(1.85);transform-origin:50% 40%" /></span>TREAT</div>
         </div>
-        <div class="btn" style="width:100%">Pay with ShibWallet</div>
+        <div class="btn" style="width:100%">Pay with ShibWallet on Shibarium</div>
       </div>
+      <figcaption class="quote">“Imagine a fish market vendor in Durbs accepting 330 SHI for his dorado.”<span>Ryoshi</span></figcaption>
+      </figure>
     </section>
 
     <section class="features">
@@ -89,9 +96,9 @@
 
 &lt;shib-pay
   to="0xYourWalletAddress"
-  amount="12.50" currency="USD"
+  amount="330" currency="ZAR"
   burn="2" order="A-1017"
-  label="Granny's Bakery"&gt;
+  label="Ryoshi's Dorado Stall"&gt;
 &lt;/shib-pay&gt;
 
 &lt;script&gt;

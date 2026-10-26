@@ -53,7 +53,7 @@ function friendlyError(err: unknown, token: string, chain: string): string {
 }
 
 /**
- * <shib-pay to="0x..." amount="12.50" currency="USD" burn="2" order="A-17" label="Granny's Shop"></shib-pay>
+ * <shib-pay to="0x..." amount="12.50" currency="USD" burn="2" order="A-17" label="Ryoshi's Dorado Stall"></shib-pay>
  *
  * Fires `shibpay:paid` (bubbles, composed) with { txHash, chainId, token, amount, burnMode, burned, pledged, payer, order }.
  * On Ethereum the burn happens in the payment; elsewhere the shop is paid in full and `pledged` is theirs to burn.

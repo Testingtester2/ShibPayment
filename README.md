@@ -42,9 +42,9 @@ If you set a burn, open `/burn.html` once a week or month: enter what you took i
 
 <shib-pay
   to="0xYourWalletAddress"
-  amount="12.50" currency="USD"
+  amount="330" currency="ZAR"
   burn="2" order="A-1017"
-  label="Granny's Bakery"
+  label="Ryoshi's Dorado Stall"
   return-url="https://yourshop.com/thank-you">
 </shib-pay>
 ```
