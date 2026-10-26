@@ -1,6 +1,7 @@
 {
   "name": "shibpayments",
   "private": true,
+  "engines": { "node": ">=22" },
   "version": "0.1.0",
   "description": "Free, non-custodial Pay with SHIB checkout: button, payment links and an optional on-chain burn.",
   "license": "MIT",

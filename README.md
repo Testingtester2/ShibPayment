@@ -122,7 +122,7 @@ The tests run an in-process EVM (ganache) posing as Ethereum or Shibarium, with 
 
 ## Hosting
 
-The site is a static build. On Vercel: import the repo with the root directory left as the repo root, framework preset "Other", install command `npm ci`, build command `npm run build`, output directory `apps/web/dist`, Node 22.
+The site is a static build. `vercel.json` sets everything for Vercel: import the repo, leave the root directory as the repo root, and deploy. (Install `npm ci`, build `npm run build`, output `apps/web/dist`, Node 22.)
 
 ## Roadmap
 
