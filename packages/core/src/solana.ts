@@ -15,7 +15,12 @@ import { splitBurn } from './amounts';
  * mention it: no unique amounts needed.
  */
 
-export const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
+/**
+ * Public RPCs, tried in order. Solana's own api.mainnet-beta refuses most
+ * requests from web pages (HTTP 403), so a browser-friendly one comes first.
+ */
+export const SOLANA_RPCS = ['https://solana-rpc.publicnode.com', 'https://api.mainnet-beta.solana.com'] as const;
+export const SOLANA_RPC = SOLANA_RPCS[0];
 export const SOLANA_CHAIN = 'solana:mainnet';
 export const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 export const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
@@ -172,22 +177,41 @@ export interface SolanaRpc {
 
 export async function solanaRpc<T>(rpc: SolanaRpc, method: string, params: unknown[]): Promise<T> {
   const f: PostFetch = rpc.fetchFn ?? fetch;
-  const res = await f(rpc.url ?? SOLANA_RPC, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) throw new Error(`Solana network unavailable (${res.status ?? 'network'})`);
-  const j = (await res.json()) as { result?: T; error?: { message: string } };
-  if (j.error) throw new Error(j.error.message);
-  return j.result as T;
+  const urls = rpc.url ? [rpc.url] : SOLANA_RPCS;
+  let failure: unknown;
+  for (const url of urls) {
+    let res: Awaited<ReturnType<PostFetch>>;
+    try {
+      res = await f(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch (e) {
+      failure = e;
+      continue;
+    }
+    if (!res.ok) {
+      failure = new Error(`Solana network unavailable (${res.status ?? 'network'})`);
+      continue;
+    }
+    // A provider can also refuse a single method (HTTP 200 with an error); the next one may answer it.
+    const j = (await res.json().catch(() => ({ error: { message: 'Solana network unavailable' } }))) as { result?: T; error?: { message: string } };
+    if (j.error) {
+      failure = new Error(j.error.message);
+      continue;
+    }
+    return j.result as T;
+  }
+  throw failure instanceof Error ? failure : new Error('Solana network unavailable');
 }
 
 export interface MintInfo { decimals: number; tokenProgram: string }
 
-/** Reads the token's decimals and token program from the chain. */
+/** The token's decimals and token program: pinned for SHIB, read from the chain for any other mint. */
 export async function getMintInfo(rpc: SolanaRpc, mint: string = SOLANA_SHIB.mint): Promise<MintInfo> {
+  if (mint === SOLANA_SHIB.mint) return { decimals: SOLANA_SHIB.decimals, tokenProgram: SOLANA_SHIB.tokenProgram };
   const r = await solanaRpc<{ value: null | { owner: string; data: { parsed?: { type: string; info: { decimals: number } } } } }>(
     rpc, 'getAccountInfo', [mint, { encoding: 'jsonParsed', commitment: 'confirmed' }],
   );

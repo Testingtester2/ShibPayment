@@ -5,7 +5,7 @@ import {
   getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
 import {
-  SOLANA_SHIB, associatedTokenAddress, base58Decode, base58Encode, buildSolanaTransfer, findSolanaPayment, newReference,
+  SOLANA_RPCS, SOLANA_SHIB, associatedTokenAddress, getMintInfo, solanaRpc, base58Decode, base58Encode, buildSolanaTransfer, findSolanaPayment, newReference,
   toSolanaPayUrl, toUiAmount, validateSolanaAddress, verifySolanaPayment, type PostFetch,
 } from '../src';
 
@@ -134,5 +134,36 @@ describe('finding and verifying', () => {
     const r = rpc([{ signature: 'bad', err: { x: 1 } }, { signature: 'good', err: null }]);
     expect(await findSolanaPayment(r, reference)).toBe('good');
     expect(r.calls[0]).toMatchObject({ method: 'getSignaturesForAddress', params: [reference, { commitment: 'confirmed' }] });
+  });
+});
+
+describe('RPC', () => {
+  it('uses the pinned SHIB mint details without a network call', async () => {
+    const fetchFn: PostFetch = async () => { throw new Error('no network'); };
+    expect(await getMintInfo({ fetchFn })).toEqual({ decimals: 4, tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' });
+  });
+
+  it('falls back to the next public RPC when one refuses', async () => {
+    const urls: string[] = [];
+    const fetchFn: PostFetch = async (url) => {
+      urls.push(url);
+      if (urls.length === 1) return { ok: false, status: 403, json: async () => ({}) };
+      return { ok: true, json: async () => ({ result: 42 }) };
+    };
+    expect(await solanaRpc({ fetchFn }, 'getSlot', [])).toBe(42);
+    expect(urls).toEqual([...SOLANA_RPCS]);
+  });
+
+  it('falls back when a provider refuses the method, and reports the last error', async () => {
+    let n = 0;
+    const refuse: PostFetch = async () => ({ ok: true, json: async () => ({ error: { message: `method disabled ${++n}` } }) });
+    await expect(solanaRpc({ fetchFn: refuse }, 'getSignaturesForAddress', [])).rejects.toThrow(`method disabled ${SOLANA_RPCS.length}`);
+  });
+
+  it("sticks to the shop's own RPC", async () => {
+    const urls: string[] = [];
+    const fetchFn: PostFetch = async (url) => { urls.push(url); return { ok: false, status: 403, json: async () => ({}) }; };
+    await expect(solanaRpc({ url: 'https://rpc.example', fetchFn }, 'getSlot', [])).rejects.toThrow(/403/);
+    expect(urls).toEqual(['https://rpc.example']);
   });
 });

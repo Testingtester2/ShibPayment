@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { encodeEventTopics, getAddress } from 'viem';
 import { BURN_ADDRESS, BURN_CHAIN_ID, COINGECKO_IDS, EVM_CHAINS, SOLANA_SHIB, sortChains } from '@shibpay/chains';
-import { SOLANA_RPC, solanaTxUrl } from '@shibpay/core';
+import { SOLANA_RPCS, solanaTxUrl } from '@shibpay/core';
 import { SPLITTER_ADDRESS, splitterAbi } from '@shibpay/contracts';
 
 const file = fileURLToPath(new URL('../shibpayment/data/chains.json', import.meta.url));
@@ -19,7 +19,7 @@ function pluginData() {
     splitter: getAddress(SPLITTER_ADDRESS),
     paidTopic: encodeEventTopics({ abi: splitterAbi, eventName: 'Paid' })[0],
     coingeckoIds: COINGECKO_IDS,
-    solana: { mint: SOLANA_SHIB.mint, rpcUrls: [SOLANA_RPC], explorerUrl: solanaTxUrl('').replace(/\/tx\/$/, '') },
+    solana: { mint: SOLANA_SHIB.mint, rpcUrls: [...SOLANA_RPCS], explorerUrl: solanaTxUrl('').replace(/\/tx\/$/, '') },
     chains: sortChains(EVM_CHAINS).map((c) => ({
       chainId: c.chainId,
       name: c.name,

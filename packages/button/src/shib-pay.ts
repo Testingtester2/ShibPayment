@@ -4,7 +4,7 @@ import {
   BURN_CHAIN_ID, TOKEN_SYMBOLS, InsufficientBalanceError, burnMode, chainsForToken, explorerTxUrl, fetchPrices, findPayment, formatTokenAmount,
   getChain, getToken, payWithWallet, percentToBps, poll, publicClientFor, quoteAmount, splitBurn,
   splitterAvailable, toEip681, validateMerchantAddress, verifyPayment,
-  findSolanaPayment, getMintInfo, isSolanaAddress, newReference, payWithSolanaWallet, solanaTxUrl, toSolanaPayUrl, validateSolanaAddress,
+  SOLANA_SHIB, findSolanaPayment, isSolanaAddress, newReference, payWithSolanaWallet, solanaTxUrl, toSolanaPayUrl, validateSolanaAddress,
   verifySolanaPayment, watchSolanaWallets,
   type BurnMode, type Eip1193Provider, type PayStep, type SolanaWallet, type TokenSymbol,
 } from '@shibpay/core';
@@ -96,8 +96,6 @@ export class ShibPayElement extends HTMLElement {
   // Solana
   private solana = false;
   private solWallets: SolanaWallet[] = [];
-  private solDecimals: number | null = null;
-  private solError = false;
   private reference = '';
   private stopSolWallets: (() => void) | null = null;
 
@@ -227,25 +225,14 @@ export class ShibPayElement extends HTMLElement {
     return this.mode(cfg) === 'in-tx' ? base : base + this.tag;
   }
 
-  /** Decimals of the selected token on the selected network (Solana's are read from the chain). */
+  /** Decimals of the selected token on the selected network. */
   private decimals(): number | null {
-    if (this.solana) return this.solDecimals;
+    if (this.solana) return SOLANA_SHIB.decimals;
     return getToken(this.chainId, this.token)?.decimals ?? null;
   }
 
   private networkName(): string {
     return this.solana ? 'Solana' : getChain(this.chainId)!.name;
-  }
-
-  private async loadSolana(cfg: Config) {
-    if (this.solDecimals !== null) return;
-    this.solError = false;
-    try {
-      this.solDecimals = (await getMintInfo({ url: cfg.solanaRpc })).decimals;
-    } catch {
-      this.solError = true;
-    }
-    this.render();
   }
 
   private async loadPrices(cfg: Config) {
@@ -317,8 +304,7 @@ export class ShibPayElement extends HTMLElement {
     this.solana = el.value === 'solana';
     if (!this.solana) this.chainId = Number(el.value);
     if (typeof cfg !== 'string') {
-      if (this.solana) this.loadSolana(cfg);
-      else this.checkSplitter(cfg);
+      if (!this.solana) this.checkSplitter(cfg);
     }
     this.render();
   }
@@ -564,7 +550,7 @@ export class ShibPayElement extends HTMLElement {
     const tokenLine = amount !== null
       ? `<b>${formatTokenAmount(amount, decimals)}</b> ${this.token}`
       : this.priceState === 'error' ? `<span class="err">Price unavailable right now</span>`
-      : this.solana && this.solError ? `<span class="err">Can't reach Solana right now</span>` : `<span class="skeleton"></span>`;
+      : `<span class="skeleton"></span>`;
     return `${cfg.label ? `<div class="merchant">${esc(cfg.label)}</div>` : '<div class="merchant">Checkout</div>'}
       <div class="price">${priced ? `${esc(cfg.amount)} ${esc(cfg.currency)}` : esc(fiat(cfg.amount, cfg.currency))}</div>
       ${priced ? '' : `<div class="token-amount">${tokenLine}</div><div class="lock">${amount !== null ? 'Price held for 15:00' : ''}</div>`}
@@ -657,7 +643,7 @@ export class ShibPayElement extends HTMLElement {
 
   private doneView(cfg: Config): string {
     const r = this.result!;
-    const d = r.solana ? this.solDecimals ?? 0 : getToken(r.chainId, this.token)!.decimals;
+    const d = r.solana ? SOLANA_SHIB.decimals : getToken(r.chainId, this.token)!.decimals;
     const shop = cfg.label ? esc(cfg.label) : 'The shop';
     return `<div class="center done">${CHECK}<div class="big" style="margin-top:12px">${this.demo ? 'That’s the whole checkout' : 'Payment sent'}</div>
       <div class="small">${this.demo ? `In a real checkout, ${shop} would be paid now. This demo sent nothing.` : `${shop} has been paid. Thank you!`}</div></div>
