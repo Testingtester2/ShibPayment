@@ -18,7 +18,8 @@ function price(amount: string, currency: string) {
   try {
     return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(amount));
   } catch {
-    return `${amount} ${currency}`;
+    // Exact token prices (SHIB, BONE): group the digits without going through floats.
+    return `${amount.replace(/^(\d+)/, (i) => i.replace(/\B(?=(\d{3})+(?!\d))/g, ','))} ${currency}`;
   }
 }
 

@@ -44,6 +44,9 @@ const loadWalletConnect = (): Promise<WalletConnectModule> => import(/* @vite-ig
 const esc = (s: unknown) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
+/** "10000" → "10,000" without going through floats, for exact token prices. */
+const grouped = (amount: string) => amount.replace(/^(\d+)/, (i) => i.replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+
 function fiat(amount: string, currency: string): string {
   try {
     return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(amount));
@@ -600,7 +603,7 @@ export class ShibPayElement extends HTMLElement {
       : this.priceState === 'error' ? `<span class="err">Price unavailable right now</span>`
       : `<span class="skeleton"></span>`;
     return `${cfg.label ? `<div class="merchant">${esc(cfg.label)}</div>` : '<div class="merchant">Checkout</div>'}
-      <div class="price">${priced ? `${esc(cfg.amount)} ${esc(cfg.currency)}` : esc(fiat(cfg.amount, cfg.currency))}</div>
+      <div class="price">${priced ? `${esc(grouped(cfg.amount))} ${esc(cfg.currency)}` : esc(fiat(cfg.amount, cfg.currency))}</div>
       ${priced ? '' : `<div class="token-amount">${tokenLine}</div><div class="lock">${amount !== null ? 'Price held for 15:00' : ''}</div>`}
       ${this.burnLine(cfg)}`;
   }
