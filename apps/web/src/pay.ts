@@ -34,7 +34,7 @@ try {
     text('div', 'price', price(cfg.amount, cfg.currency)),
     text('div', 'faint', `To ${cfg.to.slice(0, 6)}…${cfg.to.slice(-4)}${cfg.order ? ` · Order ${cfg.order}` : ''}`),
   );
-  if (cfg.burnBps) box.append(Object.assign(text('div', 'pill', `${cfg.burnBps / 100}% of this payment is burned forever`), { style: 'margin-top:14px' }));
+  if (cfg.burnBps) box.append(Object.assign(text('div', 'pill', `${cfg.label ?? 'This shop'} burns ${cfg.burnBps / 100}% of every sale`), { style: 'margin-top:14px' }));
   box.append(btn);
   const trust = document.createElement('div');
   trust.className = 'trust';

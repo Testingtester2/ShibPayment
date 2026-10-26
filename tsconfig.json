@@ -23,6 +23,9 @@
       "@shibpay/core": [
         "packages/core/src/index.ts"
       ],
+      "@shibpay/button": [
+        "packages/button/src/index.ts"
+      ],
       "@shibpay/contracts": [
         "packages/contracts/src/index.ts"
       ]

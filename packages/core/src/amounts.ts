@@ -1,4 +1,5 @@
 import { formatUnits } from 'viem';
+import { BURN_CHAIN_ID } from '@shibpay/chains';
 
 export const MAX_BPS = 10_000;
 
@@ -46,4 +47,19 @@ export function formatTokenAmount(amount: bigint, decimals: number, maxFraction 
   const intFmt = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const fracFmt = frac.slice(0, maxFraction).replace(/0+$/, '');
   return fracFmt ? `${intFmt}.${fracFmt}` : intFmt;
+}
+
+/**
+ * How a payment handles the shop's burn:
+ * - 'none': no burn asked for.
+ * - 'in-tx': burned in the same transaction through ShibPaySplitter. Only on
+ *   Ethereum (BURN_CHAIN_ID), and only once the splitter is deployed there.
+ * - 'pledge': the buyer pays the merchant in full and the merchant burns the
+ *   share on Ethereum later, from their own wallet.
+ */
+export type BurnMode = 'none' | 'in-tx' | 'pledge';
+
+export function burnMode(chainId: number, burnBps: number, splitterLive: boolean): BurnMode {
+  if (burnBps <= 0) return 'none';
+  return chainId === BURN_CHAIN_ID && splitterLive ? 'in-tx' : 'pledge';
 }

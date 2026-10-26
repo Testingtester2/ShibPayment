@@ -3,15 +3,17 @@ import { decodeEventLog, parseEther, zeroAddress } from 'viem';
 import { BURN_ADDRESS } from '@shibpay/chains';
 import { SPLITTER_ADDRESS, splitterAbi } from '@shibpay/contracts';
 import { testTokenAbi } from '../src/artifacts';
-import { startChain, SHIB } from '../../core/test/ganache';
+import { startChain } from '../../core/test/ganache';
 
 type Chain = Awaited<ReturnType<typeof startChain>>;
+let SHIB: `0x${string}`;
 const ORDER = `0x${'ab'.repeat(32)}` as const;
 
 describe('ShibPaySplitter', () => {
   let c: Chain;
   beforeAll(async () => {
-    c = await startChain();
+    c = await startChain(1);
+    SHIB = c.SHIB;
   });
 
   async function approveAndPay(amount: bigint, burnBps: number, from = c.buyer, merchant = c.merchant) {

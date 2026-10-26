@@ -72,8 +72,10 @@ function burnBps(): number | null {
     const bps = percentToBps(field('burn').value || '0');
     const pct = bps / 100;
     note($('burnNote'), bps === 0
-      ? '0% means a plain transfer: you receive 100%.'
-      : `${pct}% of each payment is burned forever, you receive ${100 - pct}%. Buyers pay the same price.`, bps > 1000 ? 'warn' : '');
+      ? '0% means no burn: you receive 100%.'
+      : `Paid on Ethereum: ${pct}% is burned in the payment and you receive ${100 - pct}%. Paid on any other network: you receive 100% and burn ${pct}% yourself on Ethereum, where burns count. Buyers pay the same price either way.`, bps > 1000 ? 'warn' : '');
+    $('burnHelp').hidden = bps === 0;
+    $<HTMLAnchorElement>('burnHelp').href = `/burn.html?burn=${pct}`;
     return bps;
   } catch (e) {
     note($('burnNote'), (e as Error).message, 'bad');

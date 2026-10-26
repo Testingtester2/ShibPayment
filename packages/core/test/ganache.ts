@@ -1,6 +1,7 @@
-// Shared in-process chain for the tests: a ganache EVM posing as Shibarium
-// (chain 109), with the test token's code placed at the real SHIB address and
-// the splitter's code at its real CREATE2 address, so the SDK runs unmodified.
+// Shared in-process chain for the tests: a ganache EVM posing as Ethereum or
+// Shibarium, with the test token's code placed at that chain's real SHIB
+// address and (optionally) the splitter's code at its real CREATE2 address,
+// so the SDK runs unmodified.
 import ganache from 'ganache';
 import { createPublicClient, createWalletClient, custom, getAddress, parseEther, type PublicClient } from 'viem';
 import { getToken } from '@shibpay/chains';
@@ -10,12 +11,11 @@ import { viemChain } from '../src/clients';
 import { getChain } from '@shibpay/chains';
 import type { Eip1193Provider } from '../src/pay';
 
-export const SHIB = getToken(109, 'SHIB')!.address;
-
-export async function startChain() {
+export async function startChain(chainId: 1 | 109 = 1, { splitter = true } = {}) {
+  const SHIB = getToken(chainId, 'SHIB')!.address;
   const raw = ganache.provider({
     logging: { quiet: true },
-    chain: { chainId: 109, hardfork: 'shanghai' },
+    chain: { chainId, hardfork: 'shanghai' },
     wallet: { totalAccounts: 4, defaultBalance: 1000 },
   });
   // A wallet-shaped provider: ganache has no eth_requestAccounts.
@@ -40,7 +40,7 @@ export async function startChain() {
       }
     },
   };
-  const chain = viemChain(getChain(109)!);
+  const chain = viemChain(getChain(chainId)!);
   const pub = createPublicClient({ chain, transport: custom(provider), pollingInterval: 50 }) as PublicClient;
   const [buyer, merchant, stranger, deployer] = ((await provider.request({ method: 'eth_accounts' })) as string[]).map((a) => getAddress(a));
   const deployWallet = createWalletClient({ chain, transport: custom(provider), account: deployer });
@@ -53,7 +53,7 @@ export async function startChain() {
     await provider.request({ method: 'evm_setAccountCode', params: [at, code] });
   }
   await placeAt(testTokenAbi, testTokenBytecode, SHIB);
-  await placeAt(splitterAbi, splitterBytecode, SPLITTER_ADDRESS);
+  if (splitter) await placeAt(splitterAbi, splitterBytecode, SPLITTER_ADDRESS);
 
   const walletOf = (account: `0x${string}`) => createWalletClient({ chain, transport: custom(provider), account });
   const mint = async (to: `0x${string}`, amount: bigint) => {
@@ -65,5 +65,5 @@ export async function startChain() {
   const mine = (n = 1) => Promise.all(Array.from({ length: n }, () => provider.request({ method: 'evm_mine' })));
 
   await mint(buyer, parseEther('1000000'));
-  return { provider, pub, buyer, merchant, stranger, walletOf, mint, balance, mine };
+  return { SHIB, provider, pub, buyer, merchant, stranger, walletOf, mint, balance, mine };
 }

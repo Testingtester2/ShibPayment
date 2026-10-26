@@ -28,7 +28,7 @@
   <div class="wrap">
     <nav>
       <a class="wordmark" href="/"><img src="/shib-logo.png" alt="" /><span><span>Shib</span><span class="pay">Payment</span></span></a>
-      <span class="faint" style="font-size:14px">No account needed</span>
+      <a class="faint navlink" style="font-size:14px" href="/burn.html">Burn helper</a>
     </nav>
     <h2 style="margin-top:16px">Create your payment link</h2>
     <p class="muted" style="margin:0">Fill this in once. Nothing is stored on our side: everything lives in the link.</p>
@@ -62,7 +62,8 @@
             <input type="range" name="burnRange" min="0" max="10" step="0.5" value="0" aria-label="Burn percentage" />
             <div class="row" style="grid-template-columns:1fr auto;align-items:center;gap:6px"><input name="burn" inputmode="decimal" value="0" aria-label="Burn percent" /><b>%</b></div>
           </div>
-          <div class="note" id="burnNote">0% means a plain transfer: you receive 100%.</div>
+          <div class="note" id="burnNote">0% means no burn: you receive 100%.</div>
+          <a class="note" id="burnHelp" href="/burn.html" hidden>Burn your share with the burn helper →</a>
         </label>
 
         <details>

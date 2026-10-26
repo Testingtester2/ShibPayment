@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseEther } from 'viem';
 import {
-  buildPaymentLink, fetchPrices, formatTokenAmount, orderTag, parsePaymentLink, percentToBps, quoteAmount,
+  buildPaymentLink, burnMode, fetchPrices, formatTokenAmount, orderTag, parsePaymentLink, percentToBps, quoteAmount,
   quoteWithTag, resolveShibName, roundUp, splitBurn, toEip681, validateMerchantAddress, EVM_CHAINS, getToken,
 } from '../src';
 
@@ -14,6 +14,16 @@ describe('registry', () => {
     expect(getToken(1, 'TREAT')).toBeTruthy();
     expect(getToken(8453, 'TREAT')).toBeUndefined();
     expect(getToken(109, 'BONE')?.native).toBe(true);
+  });
+});
+
+describe('burn mode', () => {
+  it('burns in the payment only on Ethereum with the splitter live; elsewhere it is a pledge', () => {
+    expect(burnMode(1, 200, true)).toBe('in-tx');
+    expect(burnMode(1, 200, false)).toBe('pledge');
+    expect(burnMode(109, 200, true)).toBe('pledge');
+    expect(burnMode(8453, 200, false)).toBe('pledge');
+    expect(burnMode(1, 0, true)).toBe('none');
   });
 });
 

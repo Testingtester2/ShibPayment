@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Burn helper · ShibPayment</title>
+  <meta name="description" content="Burn the share of your sales you pledged, on Ethereum, where burns count." />
+  <link rel="icon" href="/shib-logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/site.css" />
+  <style>
+    .grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 24px; align-items: start; padding: 24px 0 48px; }
+    .tokens { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
+    .tok { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px; border-radius: 16px; background: var(--bg); border: 1px solid var(--border); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .tok[aria-pressed="true"] { border-color: var(--orange); background: rgba(255,105,0,.10); box-shadow: 0 0 20px var(--glow); }
+    .calc { display: grid; grid-template-columns: 1fr auto 90px; gap: 8px; align-items: center; }
+    .calc b { color: var(--faint); font-weight: 600; }
+    .total { text-align: center; padding: 18px 12px; margin: 6px 0 18px; border-radius: 18px; background: var(--bg); border: 1px solid var(--border); }
+    .total .big { font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .wallets { display: grid; gap: 10px; }
+    .wallet { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+    .wallet:hover:not([disabled]) { border-color: rgba(255,105,0,.5); }
+    .wallet.primary { background: var(--grad); border: 0; color: #fff; }
+    .wallet[disabled] { opacity: .5; cursor: not-allowed; }
+    .wallet img { width: 28px; height: 28px; border-radius: 8px; }
+    .wallet .grow { flex: 1; }
+    .status { margin-top: 14px; text-align: center; min-height: 20px; }
+    ol.how { padding-left: 20px; margin: 0; display: grid; gap: 12px; }
+    ol.how li::marker { color: var(--orange); font-weight: 700; }
+    .flame { color: var(--amber); }
+    .flame svg { width: 24px; height: 24px; vertical-align: -3px; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="wordmark" href="/"><img src="/shib-logo.png" alt="" /><span><span>Shib</span><span class="pay">Payment</span></span></a>
+      <a class="btn small cta" href="/setup.html">Payment links</a>
+    </nav>
+    <h2 style="margin-top:16px">Burn what you pledged</h2>
+    <p class="muted" style="margin:0;max-width:640px">Burns only count on Ethereum. Sales paid on other networks reach you in full, so you burn your share here, in one go, whenever it suits you.</p>
+
+    <div class="grid">
+      <form class="card" id="form" novalidate>
+        <div class="label muted" style="font-size:13px;font-weight:600;margin-bottom:8px">Token to burn</div>
+        <div class="tokens" id="tokens"></div>
+
+        <label class="field"><span>Work it out for me (optional)</span>
+          <div class="calc">
+            <input name="takings" inputmode="decimal" placeholder="What you took in" aria-label="Total taken in" />
+            <b>×</b>
+            <div class="row" style="grid-template-columns:1fr auto;align-items:center;gap:6px"><input name="pct" inputmode="decimal" value="2" aria-label="Burn percent" /><b>%</b></div>
+          </div>
+          <div class="note" id="calcNote">Add up the sales you took on other networks since your last burn.</div>
+        </label>
+
+        <label class="field"><span>Amount to burn</span>
+          <input name="amount" inputmode="decimal" placeholder="0" />
+        </label>
+
+        <div class="total"><div class="faint" style="font-size:13px">You burn, on Ethereum</div><div class="big" id="total">0 SHIB</div></div>
+
+        <div class="wallets" id="wallets"></div>
+        <div class="status note" id="status" role="status"></div>
+      </form>
+
+      <div class="card">
+        <h3 style="margin-top:0">How it works</h3>
+        <ol class="how muted">
+          <li><b style="color:var(--text)">Have the tokens on Ethereum.</b> If they're on Shibarium, Base or another network, move them to Ethereum first with the official Shib bridge.</li>
+          <li><b style="color:var(--text)">Burn once a week or month.</b> Each burn is one Ethereum transaction, so burning in batches keeps network fees low.</li>
+          <li><b style="color:var(--text)">Anyone can check it.</b> Burns go to <code>0x…dEaD</code> on Ethereum, the address every burn tracker counts.</li>
+        </ol>
+        <p class="note" style="margin-top:18px">Payments taken on Ethereum already burned their share in the payment. You only need this for the other networks.</p>
+        <p class="note" id="history" hidden></p>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script type="module" src="/src/burn.ts"></script>
+</body>
+</html>

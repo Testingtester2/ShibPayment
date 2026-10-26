@@ -47,6 +47,14 @@ export const TOKEN_NAMES: Record<TokenSymbol, string> = {
 /** Where burned tokens go on every EVM chain. ShibWallet's burn tracker counts it on Ethereum. */
 export const BURN_ADDRESS = '0x000000000000000000000000000000000000dEaD' as const;
 
+/**
+ * The one chain where a burn counts. Burn trackers read the dead address on
+ * Ethereum, and burning a bridged copy on another chain leaves the original
+ * locked in the bridge, so supply doesn't change. Payments on other chains
+ * carry the shop's burn as a pledge, which the merchant burns here later.
+ */
+export const BURN_CHAIN_ID = 1;
+
 /** Shibarium first: lowest fees, and every transaction feeds the burn. */
 export const DEFAULT_CHAIN_ID = 109;
 
