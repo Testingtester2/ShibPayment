@@ -5,6 +5,7 @@ import {
 } from '@shibpay/core';
 import { CHEVRON, FLAME, WALLET, tokenLogo } from '@shibpay/button';
 import { initEvery, renderEvery } from './burn-every';
+import { connectWithWalletConnect, pickerClosed, walletAppLinks } from './walletconnect';
 
 interface WalletInfo { uuid: string; name: string; icon: string; rdns: string; provider: Eip1193Provider }
 
@@ -83,9 +84,9 @@ function render() {
   if (!wallets.length && injected) {
     rows.push(`<button type="button" class="wallet primary" data-uuid="injected" ${can ? '' : 'disabled'}>${WALLET}<span class="grow">Burn with my browser wallet</span>${CHEVRON}</button>`);
   }
-  $('wallets').innerHTML = rows.length
-    ? rows.join('')
-    : `<div class="note">Open this page in ShibWallet, MetaMask or another wallet's browser to burn.</div>`;
+  const primary = rows.length === 0;
+  rows.push(`<button type="button" class="wallet ${primary ? 'primary' : ''}" data-uuid="walletconnect" ${can ? '' : 'disabled'}><span class="wc">WC</span><span class="grow">Burn with WalletConnect</span>${CHEVRON}</button>`);
+  $('wallets').innerHTML = rows.join('') + (primary ? walletAppLinks() : '');
 }
 
 const STEP_TEXT: Record<PayStep, string> = {
@@ -152,6 +153,14 @@ form.addEventListener('click', (e) => {
     return render();
   }
   const uuid = el.dataset.uuid!;
+  if (uuid === 'walletconnect') {
+    if (!amount() || busy) return;
+    status('Pick your wallet app…');
+    connectWithWalletConnect([BURN_CHAIN_ID])
+      .then((p) => burn(p))
+      .catch((err) => status(pickerClosed(err) ? '' : (err as Error).message || "Couldn't connect with WalletConnect.", pickerClosed(err) ? '' : 'bad'));
+    return;
+  }
   void burn(uuid === 'injected'
     ? (window as unknown as { ethereum?: Eip1193Provider }).ethereum
     : wallets.find((w) => w.uuid === uuid)?.provider);

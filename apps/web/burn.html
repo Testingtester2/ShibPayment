@@ -26,6 +26,7 @@
     .wallet[disabled] { opacity: .5; cursor: not-allowed; }
     .wallet img { width: 28px; height: 28px; border-radius: 8px; }
     .wallet .grow { flex: 1; }
+    .wallet .wc { width: 28px; height: 28px; border-radius: 8px; background: #3B99FC; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 13px; flex: none; }
     .status { margin-top: 14px; text-align: center; min-height: 20px; }
     ol.how { padding-left: 20px; margin: 0; display: grid; gap: 12px; }
     ol.how li::marker { color: var(--orange); font-weight: 700; }
@@ -85,7 +86,7 @@
 
         <div class="total"><div class="faint" style="font-size:13px">You burn, on Ethereum</div><div class="big" id="total">0 SHIB</div></div>
 
-        <div class="wallets" id="wallets"></div>
+        <div class="wallets" id="wallets"><div class="note">Loading your wallet options…</div></div>
         <div class="status note" id="status" role="status"></div>
       </form>
 
@@ -104,9 +105,9 @@
     <section class="card every" id="every">
       <h3 style="margin-top:0">Burn from every network</h3>
       <p class="muted lead">Finds your SHIB, BONE and LEASH on Ethereum and 11 other networks, and burns what you choose. Off Ethereum, Chainlink's official bridge (CCIP) carries each token to <code>0x…dEaD</code> on Ethereum, so the burn counts. You confirm each network in your wallet (one tap in wallets that bundle steps, like MetaMask), and pay a small bridge fee in that network's own coin.</p>
-      <div class="wallets" id="findWallets"></div>
+      <div class="wallets" id="findWallets"><div class="note">Loading your wallet options…</div></div>
       <div id="nets" class="nets" hidden></div>
-      <button type="button" class="btn burnall" id="burnAll" hidden></button>
+      <button type="button" class="btn burnall" id="burnAll" hidden disabled>Burn</button>
       <div class="status note" id="everyStatus" role="status"></div>
       <p class="note skip">Not covered: Shibarium (including TREAT there and BONE gas) and SHIB on Solana aren't on Chainlink's bridge. Move those to Ethereum first (Shibarium bridge, or Sunrise for Solana), then burn them at the top of this page.</p>
     </section>

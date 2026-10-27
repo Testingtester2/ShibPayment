@@ -1,9 +1,8 @@
 import { parsePaymentLink } from '@shibpay/core';
 import { ShibPayElement } from '@shibpay/button';
+import { WALLETCONNECT_PROJECT_ID, WALLETCONNECT_SCRIPT } from './walletconnect';
 
-// Reown (WalletConnect) project for shibpayments.shibfun.app; it only works on domains allowed in its dashboard.
-const WALLETCONNECT_PROJECT_ID = 'baa20aa26d36f8ba686135b5fac6bca8';
-ShibPayElement.walletConnectScript = '/shib-pay-walletconnect.js';
+ShibPayElement.walletConnectScript = WALLETCONNECT_SCRIPT;
 
 const box = document.getElementById('box')!;
 

@@ -1,3 +1,6 @@
+/* The hidden attribute always wins, even on elements styled with display (like .btn). */
+[hidden] { display: none !important; }
+
 :root {
   --bg: #0D0D0D; --surface: #1A1A1A; --surface-2: #222222; --border: #2E2E2E;
   --glass: rgba(255,255,255,0.04); --glass-border: rgba(255,255,255,0.08);
