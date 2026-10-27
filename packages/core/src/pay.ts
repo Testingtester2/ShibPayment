@@ -105,12 +105,12 @@ export async function payWithWallet(p: PayParams): Promise<PayResult> {
   const splitter = p.splitter ?? SPLITTER_ADDRESS;
 
   p.onStep?.('connecting');
-  const payer = await connect(p.provider);
+  const payer = await connectWallet(p.provider);
 
   p.onStep?.('switching-chain');
   await ensureChain(p.provider, p.chainId);
 
-  const { pub, wallet } = clientsFor(p.provider, p.chainId, payer);
+  const { pub, wallet } = walletClients(p.provider, p.chainId, payer);
   await requireBalance(pub, p.token, p.chainId, payer, p.amount);
 
   // Before the splitter is deployed, Ethereum payments fall back to a pledge too.
@@ -161,7 +161,7 @@ export async function payWithWallet(p: PayParams): Promise<PayResult> {
   };
 }
 
-interface Call { to: `0x${string}`; data: `0x${string}` }
+export interface Call { to: `0x${string}`; data: `0x${string}`; value?: bigint }
 
 /**
  * Sends `calls` as one atomic EIP-5792 batch when the wallet says it can, and
@@ -188,7 +188,7 @@ export async function sendAtomicBatch(
   onSend?.();
   const sent = (await provider.request({
     method: 'wallet_sendCalls',
-    params: [{ version: '2.0.0', chainId: hexId, from, atomicRequired: true, calls: calls.map((x) => ({ ...x, value: '0x0' })) }],
+    params: [{ version: '2.0.0', chainId: hexId, from, atomicRequired: true, calls: calls.map((x) => ({ to: x.to, data: x.data, value: numberToHex(x.value ?? 0n) })) }],
   })) as string | { id: string };
   const id = typeof sent === 'string' ? sent : sent.id;
 
@@ -230,10 +230,10 @@ export async function burnOnEthereum(p: BurnParams): Promise<Omit<PayResult, 'bu
   if (p.amount <= 0n) throw new Error('Nothing to burn.');
 
   p.onStep?.('connecting');
-  const payer = await connect(p.provider);
+  const payer = await connectWallet(p.provider);
   p.onStep?.('switching-chain');
   await ensureChain(p.provider, chainId);
-  const { pub, wallet } = clientsFor(p.provider, chainId, payer);
+  const { pub, wallet } = walletClients(p.provider, chainId, payer);
   await requireBalance(pub, p.token, chainId, payer, p.amount);
 
   p.onStep?.('paying');
@@ -244,13 +244,13 @@ export async function burnOnEthereum(p: BurnParams): Promise<Omit<PayResult, 'bu
   return { hash, chainId, payer, receipt, burned: p.amount };
 }
 
-async function connect(provider: Eip1193Provider): Promise<`0x${string}`> {
+export async function connectWallet(provider: Eip1193Provider): Promise<`0x${string}`> {
   const accounts = (await provider.request({ method: 'eth_requestAccounts' })) as string[];
   if (!accounts?.length) throw new Error('No wallet account was shared.');
   return getAddress(accounts[0]);
 }
 
-function clientsFor(provider: Eip1193Provider, chainId: number, account: `0x${string}`) {
+export function walletClients(provider: Eip1193Provider, chainId: number, account: `0x${string}`) {
   const vchain = viemChain(getChain(chainId)!);
   const transport = custom(provider);
   return {
@@ -260,7 +260,7 @@ function clientsFor(provider: Eip1193Provider, chainId: number, account: `0x${st
 }
 
 // Check the balance first: a failed transaction still costs the sender gas.
-async function requireBalance(pub: ReturnType<typeof clientsFor>['pub'], symbol: TokenSymbol, chainId: number, who: `0x${string}`, amount: bigint) {
+export async function requireBalance(pub: ReturnType<typeof walletClients>['pub'], symbol: TokenSymbol, chainId: number, who: `0x${string}`, amount: bigint) {
   const token = getToken(chainId, symbol)!;
   const balance = token.native
     ? await pub.getBalance({ address: who })
@@ -268,7 +268,7 @@ async function requireBalance(pub: ReturnType<typeof clientsFor>['pub'], symbol:
   if (balance < amount) throw new InsufficientBalanceError(symbol, getChain(chainId)!.name);
 }
 
-function transfer(wallet: ReturnType<typeof clientsFor>['wallet'], token: { address: `0x${string}`; native?: boolean }, to: `0x${string}`, amount: bigint) {
+function transfer(wallet: ReturnType<typeof walletClients>['wallet'], token: { address: `0x${string}`; native?: boolean }, to: `0x${string}`, amount: bigint) {
   return token.native
     ? wallet.sendTransaction({ to, value: amount })
     : wallet.writeContract({ address: token.address, abi: erc20Abi, functionName: 'transfer', args: [to, amount] });

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Burn helper · ShibPayment</title>
-  <meta name="description" content="Burn the share of your sales you pledged, on Ethereum, where burns count." />
+  <meta name="description" content="Burn the share of your sales you pledged. SHIB, BONE and LEASH on 12 networks land in 0x…dEaD on Ethereum, where burns count." />
   <link rel="icon" href="/shib-logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -31,6 +31,23 @@
     ol.how li::marker { color: var(--orange); font-weight: 700; }
     .flame { color: var(--amber); }
     .flame svg { width: 24px; height: 24px; vertical-align: -3px; }
+    .every { margin-bottom: 48px; }
+    .every .lead { margin: 0 0 16px; max-width: 720px; }
+    .nets { display: grid; gap: 10px; margin: 16px 0; }
+    .net { border: 1px solid var(--border); border-radius: 18px; background: var(--bg); padding: 14px 16px; }
+    .net.off { opacity: .55; }
+    .net-head { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+    .net-head input { width: 20px; height: 20px; accent-color: var(--orange); flex: none; }
+    .net-head .grow { flex: 1; }
+    .net-head .fee { font-size: 12px; font-weight: 500; color: var(--faint); text-align: right; }
+    .lines { display: grid; gap: 8px; margin-top: 10px; }
+    .line { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; }
+    .line .tl svg, .line .tl img { width: 28px; height: 28px; }
+    .line input { height: 42px; font-variant-numeric: tabular-nums; }
+    .line .bal { font-size: 12px; color: var(--faint); grid-column: 2 / 4; margin-top: -4px; }
+    .net .note { margin-top: 10px; overflow-wrap: anywhere; }
+    .burnall { width: 100%; }
+    .skip { margin-top: 16px; }
     @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
     @media (max-width: 600px) {
       .grid { padding: 16px 0 32px; gap: 16px; }
@@ -46,7 +63,7 @@
       <a class="btn small cta" href="/setup.html"><span class="long">Create a payment link</span><span class="short">Create a link</span></a>
     </nav>
     <h2 style="margin-top:16px">Burn what you pledged</h2>
-    <p class="muted" style="margin:0;max-width:640px">Burns only count on Ethereum. Sales paid on other networks reach you in full, so you burn your share here, in one go, whenever it suits you.</p>
+    <p class="muted" style="margin:0;max-width:640px">Burns only count on Ethereum. Sales paid on other networks reach you in full, so you burn your share here whenever it suits you. Work it out and burn it on Ethereum, or burn straight from the network the tokens are on.</p>
 
     <div class="grid">
       <form class="card" id="form" novalidate>
@@ -75,14 +92,24 @@
       <div class="card">
         <h3 style="margin-top:0">How it works</h3>
         <ol class="how muted">
-          <li><b style="color:var(--text)">Have the tokens on Ethereum.</b> If they're on Shibarium, Base or another network, move them to Ethereum first with the official Shib bridge.</li>
-          <li><b style="color:var(--text)">Burn once a week or month.</b> Each burn is one Ethereum transaction, so burning in batches keeps network fees low.</li>
+          <li><b style="color:var(--text)">Burn from where the tokens are.</b> On Ethereum it's a plain burn. On Base, Polygon, BNB Chain and 8 other networks, Chainlink's official bridge carries them to the burn address on Ethereum. <a href="#every">Burn from every network</a></li>
+          <li><b style="color:var(--text)">Burn once a week or month.</b> Every burn costs a network fee, so burning in batches keeps fees low.</li>
           <li><b style="color:var(--text)">Anyone can check it.</b> Burns go to <code>0x…dEaD</code> on Ethereum, the address every burn tracker counts.</li>
         </ol>
         <p class="note" style="margin-top:18px">Payments taken on Ethereum already burned their share in the payment. You only need this for the other networks.</p>
         <p class="note" id="history" hidden></p>
       </div>
     </div>
+
+    <section class="card every" id="every">
+      <h3 style="margin-top:0">Burn from every network</h3>
+      <p class="muted lead">Finds your SHIB, BONE and LEASH on Ethereum and 11 other networks, and burns what you choose. Off Ethereum, Chainlink's official bridge (CCIP) carries each token to <code>0x…dEaD</code> on Ethereum, so the burn counts. You confirm each network in your wallet (one tap in wallets that bundle steps, like MetaMask), and pay a small bridge fee in that network's own coin.</p>
+      <div class="wallets" id="findWallets"></div>
+      <div id="nets" class="nets" hidden></div>
+      <button type="button" class="btn burnall" id="burnAll" hidden></button>
+      <div class="status note" id="everyStatus" role="status"></div>
+      <p class="note skip">Not covered: Shibarium (including TREAT there and BONE gas) and SHIB on Solana aren't on Chainlink's bridge. Move those to Ethereum first (Shibarium bridge, or Sunrise for Solana), then burn them at the top of this page.</p>
+    </section>
   </div>
   <div class="toast" id="toast"></div>
   <script type="module" src="/src/burn.ts"></script>
