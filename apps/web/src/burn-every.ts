@@ -3,11 +3,12 @@
 // at a time. Amounts are the shop's to set; nothing is stored.
 import { formatUnits, parseUnits } from 'viem';
 import {
-  BURN_CHAIN_ID, InsufficientBalanceError, InsufficientGasError, burnFromChain, ccipExplorerUrl, connectWallet, explorerTxUrl,
+  BURN_CHAIN_ID, BURN_FROM_CHAIN_IDS, InsufficientBalanceError, InsufficientGasError, burnFromChain, ccipExplorerUrl, connectWallet, explorerTxUrl,
   findBurnableBalances, formatTokenAmount, getChain, getToken, publicClientFor, quoteCcipBurn,
   type BurnItem, type ChainBalances, type Eip1193Provider, type PayStep, type TokenSymbol,
 } from '@shibpay/core';
 import { CHEVRON, WALLET, tokenLogo } from '@shibpay/button';
+import { connectWithWalletConnect, pickerClosed, walletAppLinks } from './walletconnect';
 
 export interface WalletChoice { uuid: string; name: string; icon: string; provider: Eip1193Provider }
 
@@ -73,10 +74,10 @@ export function renderEvery(list: WalletChoice[] = wallets) {
   if (provider) {
     find.innerHTML = '';
   } else {
-    find.innerHTML = choices.length
-      ? choices.map((w, i) => `<button type="button" class="wallet ${i === 0 ? 'primary' : ''}" data-find="${esc(w.uuid)}" ${busy ? 'disabled' : ''}>
+    find.innerHTML = choices.map((w, i) => `<button type="button" class="wallet ${i === 0 ? 'primary' : ''}" data-find="${esc(w.uuid)}" ${busy ? 'disabled' : ''}>
         ${/^data:image\//.test(w.icon) ? `<img src="${esc(w.icon)}" alt="" />` : WALLET}<span class="grow">Find my tokens with ${esc(w.name)}</span>${CHEVRON}</button>`).join('')
-      : `<div class="note">Open this page in ShibWallet, MetaMask or another wallet's browser to find your tokens.</div>`;
+      + `<button type="button" class="wallet ${choices.length ? '' : 'primary'}" data-find="walletconnect" ${busy ? 'disabled' : ''}><span class="wc">WC</span><span class="grow">Find my tokens with WalletConnect</span>${CHEVRON}</button>`
+      + (choices.length ? '' : walletAppLinks());
   }
 
   const box = $('nets');
@@ -222,6 +223,14 @@ export function initEvery() {
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-find],[data-max],#burnAll');
     if (!el) return;
     if (el.id === 'burnAll') return void burnAll();
+    if (el.dataset.find === 'walletconnect') {
+      if (busy) return;
+      everyStatus('Pick your wallet app…');
+      connectWithWalletConnect([...BURN_FROM_CHAIN_IDS])
+        .then((p) => find(p))
+        .catch((err) => everyStatus(pickerClosed(err) ? '' : esc((err as Error).message || "Couldn't connect with WalletConnect."), pickerClosed(err) ? '' : 'bad'));
+      return;
+    }
     if (el.dataset.find) {
       const uuid = el.dataset.find;
       return void find(uuid === 'injected'
