@@ -10,3 +10,4 @@ export { erc20Abi } from './abi';
 export * from '@shibpay/chains';
 export { SPLITTER_ADDRESS, splitterAbi } from '@shibpay/contracts';
 export * from './solana';
+export * from './ccip';

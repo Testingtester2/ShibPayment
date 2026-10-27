@@ -3,7 +3,7 @@
 Free, non-custodial **Pay with SHIB** for any shop. A merchant pastes their wallet address, sets a price, and shares a link or drops one button on their website. Buyers pay with **SHIB, BONE, LEASH or TREAT** on any of the **13 networks** where those tokens live, straight into the merchant's wallet.
 
 - **No fees.** ShibPayment never takes a cut and never holds money. Shibarium's built-in burns are the only "fee".
-- **Optional burn.** A merchant can pledge a share of every sale to burn. Burns only count on Ethereum, so payments on Ethereum burn it in the same transaction, and for every other network the merchant burns their share on Ethereum with the burn helper (`/burn.html`).
+- **Optional burn.** A merchant can pledge a share of every sale to burn. Burns only count on Ethereum, so payments on Ethereum burn it in the same transaction, and for every other network the merchant burns their share with the burn helper (`/burn.html`), either on Ethereum or straight from 11 other networks through Chainlink CCIP.
 - **Granny-simple.** No account, no sign-up, no crypto words on the default screens.
 
 | Checkout | Paid | Phone |
@@ -30,7 +30,9 @@ Open `/setup.html`, fill in your shop name, your receiving wallet (an address, o
 
 Use your own wallet, not an exchange deposit address: exchanges often don't credit tokens sent on side networks.
 
-If you set a burn, open `/burn.html` once a week or month: enter what you took in on networks other than Ethereum, and it burns your share from your wallet on Ethereum in one transaction. Your tokens need to be on Ethereum for that; bridge them there first if they aren't.
+If you set a burn, open `/burn.html` once a week or month: enter what you took in on networks other than Ethereum, and it works out your share and burns it from your wallet on Ethereum in one transaction.
+
+Or burn from where the tokens are: **Burn from every network** finds your SHIB, BONE and LEASH on Ethereum and the 11 networks on Chainlink CCIP (OP Mainnet, BNB Chain, Gnosis, Polygon, Mantle, Base, Arbitrum One, Celo, Avalanche, Linea, Scroll), you set the amounts, and it burns one network at a time. Off Ethereum each token goes through the official CCIP bridge with `0x…dEaD` on Ethereum as the receiver; the SHIB, BONE and LEASH pools release the original tokens there, so the burn counts. Each network is one confirmation in wallets that bundle calls (EIP-5792), otherwise approve plus send per token, and the bridge fee is paid in that network's gas coin. Shibarium and Solana aren't on CCIP, so move those to Ethereum first.
 
 ![Burn helper](docs/screenshots/burn-helper.png)
 
@@ -116,7 +118,7 @@ It waits for `finalized` by default, about 13 seconds after the payment, after w
 
 - **Plain transfer** (no burn, or any network other than Ethereum): one ordinary token transfer from buyer to merchant. No contract is involved. A plain transfer carries no order number, so each quote gets a unique amount (a tag in the 3rd to 6th decimals), which lets `findPayment()` match QR payments to their order.
 - **Burn on Ethereum**: the buyer approves the exact amount, then calls `ShibPaySplitter.pay()`, which sends the burn share to `0x000000000000000000000000000000000000dEaD` and the rest to the merchant in one transaction, and emits `Paid(orderId, payer, merchant, token, amount, burned)`. Wallets that can bundle calls ([EIP-5792](https://eips.ethereum.org/EIPS/eip-5792), such as MetaMask smart accounts and Coinbase Wallet) get the approval and the payment in one confirmation; others confirm twice. None of SHIB, BONE, LEASH or TREAT supports `permit`, so a signature can't replace the approval.
-- **Burn pledge** (other networks): burning a bridged copy of SHIB on Base or Shibarium doesn't reduce supply, because the original stays locked in the bridge on Ethereum, and burn trackers only count Ethereum. So the merchant is paid in full, and the checkout shows the shop's pledge. The merchant settles it with `burnOnEthereum()` (the burn helper page), a plain transfer to `0x…dEaD` on Ethereum. No contract is needed on any other chain.
+- **Burn pledge** (other networks): burning a bridged copy of SHIB on Base or Shibarium doesn't reduce supply, because the original stays locked in the bridge on Ethereum, and burn trackers only count Ethereum. So the merchant is paid in full, and the checkout shows the shop's pledge. The merchant settles it with `burnOnEthereum()` (the burn helper page), a plain transfer to `0x…dEaD` on Ethereum, or with `burnFromChain()`, which sends the tokens through Chainlink CCIP to `0x…dEaD` on Ethereum from any of 11 networks. No contract of ours is needed on any other chain.
 - **SHIB on Solana**: a [Solana Pay](https://docs.solanapay.com/spec) transfer of Sunrise's SHIB to the merchant's Solana wallet, carrying a random `reference` key per checkout so the payment can be found and tied to its order without a unique amount. Buyers pay from Phantom, Solflare or any Solana wallet in the browser, or tap or scan the `solana:` link on a phone. The checkout creates the merchant's SHIB account if it has none (the buyer pays its rent, about 0.002 SOL). Burns are always a pledge here, because only Ethereum burns count. The SDK builds this transaction itself, without a Solana library, and the tests check it against `@solana/web3.js` and `@solana/spl-token`.
 - Before asking the wallet to sign, the SDK checks the buyer's balance, so a buyer who can't afford it never pays gas for a failed transaction.
 
@@ -167,7 +169,7 @@ The site is a static build. `vercel.json` sets everything for Vercel: import the
 
 ## Roadmap
 
-1. **Now:** button, payment links, link builder, burn helper, Ethereum burn splitter, WooCommerce plugin, 13 EVM networks, SHIB on Solana (in the button, links and the plugin).
-2. **Next:** deploy the splitter on Ethereum, ShibWallet opening payment links directly, bridge-then-burn in one tap once ShibWallet's CCIP sending is wired up.
+1. **Now:** button, payment links, link builder, burn helper (including bridge-and-burn from 11 CCIP networks), Ethereum burn splitter, WooCommerce plugin, 13 EVM networks, SHIB on Solana (in the button, links and the plugin).
+2. **Next:** deploy the splitter on Ethereum, ShibWallet opening payment links directly.
 3. **Then:** WalletConnect, more shop platforms.
 4. **Later:** supply-chain provenance on Shibarium.

@@ -250,6 +250,33 @@ export const SOLANA_SHIB = {
   verified: true,
 } as const;
 
+/**
+ * Chainlink CCIP, the official bridge for SHIB, BONE and LEASH on these
+ * chains. Their token pools burn on the way out and release the original
+ * tokens on Ethereum, so a CCIP transfer to 0x...dEaD on Ethereum is a real
+ * burn. Routers are from Chainlink's CCIP directory (smartcontractkit/
+ * documentation, ccip/v1_2_0/mainnet/chains.json); every lane to Ethereum
+ * supports all three tokens with no rate limit. Shibarium is not on CCIP.
+ */
+export const CCIP_ETHEREUM_SELECTOR = 5009297550715157269n;
+
+export const CCIP_ROUTERS: Record<number, `0x${string}`> = {
+  10: '0x3206695CaE29952f4b0c22a169725a865bc8Ce0f',
+  56: '0x34B03Cb9086d7D758AC55af71584F81A598759FE',
+  100: '0x4aAD6071085df840abD9Baf1697d5D5992bDadce',
+  137: '0x849c5ED5a80F5B408Dd4969b78c2C8fdf0565Bfe',
+  5000: '0x670052635a9850bb45882Cb2eCcF66bCff0F41B7',
+  8453: '0x881e3A65B4d4a04dD529061dd0071cf975F58bCD',
+  42161: '0x141fa059441E0ca23ce184B6A78bafD2A517DdE8',
+  42220: '0xfB48f15480926A4ADf9116Dca468bDd2EE6C5F62',
+  43114: '0xF4c7E640EdA248ef95972845a62bdC74237805dB',
+  59144: '0x549FEB73F2348F6cD99b9fc8c69252034897f06C',
+  534352: '0x9a55E8Cab6564eb7bbd7124238932963B8Af71DC',
+};
+
+/** Tokens that can be bridged to Ethereum and burned in one step. TREAT lives on Ethereum and Shibarium only. */
+export const CCIP_BURN_TOKENS: readonly TokenSymbol[] = ['SHIB', 'BONE', 'LEASH'];
+
 export function getChain(chainId: number): EvmChain | undefined {
   return EVM_CHAINS.find((c) => c.chainId === chainId);
 }

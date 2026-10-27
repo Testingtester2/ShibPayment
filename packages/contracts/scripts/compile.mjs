@@ -44,6 +44,7 @@ const pick = (file, name) => {
 };
 const splitter = pick('ShibPaySplitter.sol', 'ShibPaySplitter');
 const testToken = pick('TestToken.sol', 'TestToken');
+const mockRouter = pick('MockCcipRouter.sol', 'MockCcipRouter');
 const splitterAddress = getContractAddress({
   opcode: 'CREATE2',
   from: CREATE2_DEPLOYER,
@@ -64,6 +65,10 @@ export const splitterBytecode = '${splitter.bytecode}' as const;
 /** Test-only ERC-20. Never deployed to a real chain. */
 export const testTokenAbi = ${JSON.stringify(testToken.abi)} as const;
 export const testTokenBytecode = '${testToken.bytecode}' as const;
+
+/** Test-only CCIP router stand-in. Never deployed to a real chain. */
+export const mockCcipRouterAbi = ${JSON.stringify(mockRouter.abi)} as const;
+export const mockCcipRouterBytecode = '${mockRouter.bytecode}' as const;
 `;
 fs.writeFileSync(path.join(root, 'src', 'artifacts.ts'), ts);
 fs.writeFileSync(

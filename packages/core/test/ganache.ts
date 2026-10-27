@@ -4,14 +4,14 @@
 // so the SDK runs unmodified.
 import ganache from 'ganache';
 import { createPublicClient, createWalletClient, custom, getAddress, parseEther, type PublicClient } from 'viem';
-import { getToken } from '@shibpay/chains';
+import { CCIP_ROUTERS, getToken, type TokenSymbol } from '@shibpay/chains';
 import { SPLITTER_ADDRESS, splitterAbi, splitterBytecode } from '@shibpay/contracts';
-import { testTokenAbi, testTokenBytecode } from '../../contracts/src/artifacts';
+import { mockCcipRouterAbi, mockCcipRouterBytecode, testTokenAbi, testTokenBytecode } from '../../contracts/src/artifacts';
 import { viemChain } from '../src/clients';
 import { getChain } from '@shibpay/chains';
 import type { Eip1193Provider } from '../src/pay';
 
-export async function startChain(chainId: 1 | 109 = 1, { splitter = true } = {}) {
+export async function startChain(chainId = 1, { splitter = true } = {}) {
   const SHIB = getToken(chainId, 'SHIB')!.address;
   const raw = ganache.provider({
     logging: { quiet: true },
@@ -52,18 +52,21 @@ export async function startChain(chainId: 1 | 109 = 1, { splitter = true } = {})
     const code = await pub.getCode({ address: r.contractAddress! });
     await provider.request({ method: 'evm_setAccountCode', params: [at, code] });
   }
-  await placeAt(testTokenAbi, testTokenBytecode, SHIB);
+  for (const t of getChain(chainId)!.tokens) if (!t.native) await placeAt(testTokenAbi, testTokenBytecode, t.address);
   if (splitter) await placeAt(splitterAbi, splitterBytecode, SPLITTER_ADDRESS);
+  // A stand-in CCIP router at the chain's real router address.
+  const router = CCIP_ROUTERS[chainId];
+  if (router) await placeAt(mockCcipRouterAbi, mockCcipRouterBytecode, router);
 
   const walletOf = (account: `0x${string}`) => createWalletClient({ chain, transport: custom(provider), account });
-  const mint = async (to: `0x${string}`, amount: bigint) => {
-    const hash = await walletOf(deployer).writeContract({ address: SHIB, abi: testTokenAbi, functionName: 'mint', args: [to, amount] });
+  const mint = async (to: `0x${string}`, amount: bigint, symbol: TokenSymbol = 'SHIB') => {
+    const hash = await walletOf(deployer).writeContract({ address: getToken(chainId, symbol)!.address, abi: testTokenAbi, functionName: 'mint', args: [to, amount] });
     await pub.waitForTransactionReceipt({ hash });
   };
-  const balance = (who: `0x${string}`) =>
-    pub.readContract({ address: SHIB, abi: testTokenAbi, functionName: 'balanceOf', args: [who] }) as Promise<bigint>;
+  const balance = (who: `0x${string}`, symbol: TokenSymbol = 'SHIB') =>
+    pub.readContract({ address: getToken(chainId, symbol)!.address, abi: testTokenAbi, functionName: 'balanceOf', args: [who] }) as Promise<bigint>;
   const mine = (n = 1) => Promise.all(Array.from({ length: n }, () => provider.request({ method: 'evm_mine' })));
 
   await mint(buyer, parseEther('1000000'));
-  return { SHIB, provider, pub, buyer, merchant, stranger, walletOf, mint, balance, mine };
+  return { SHIB, router, provider, pub, buyer, merchant, stranger, deployer, walletOf, mint, balance, mine };
 }

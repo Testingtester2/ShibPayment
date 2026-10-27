@@ -4,6 +4,7 @@ import {
   percentToBps, splitBurn, type Eip1193Provider, type PayStep, type TokenSymbol,
 } from '@shibpay/core';
 import { CHEVRON, FLAME, WALLET, tokenLogo } from '@shibpay/button';
+import { initEvery, renderEvery } from './burn-every';
 
 interface WalletInfo { uuid: string; name: string; icon: string; rdns: string; provider: Eip1193Provider }
 
@@ -115,7 +116,7 @@ async function burn(provider: Eip1193Provider | undefined) {
     const text = `${e.shortMessage ?? ''} ${e.message ?? ''}`.toLowerCase();
     status(
       e.code === 4001 || e.cause?.code === 4001 || text.includes('user rejected') ? 'You cancelled in your wallet. Nothing was burned.'
-      : err instanceof InsufficientBalanceError ? `Not enough ${token} on Ethereum. If it's on another network, bridge it to Ethereum first.`
+      : err instanceof InsufficientBalanceError ? `Not enough ${token} on Ethereum. If it's on another network, burn it from there below.`
       : text.includes('insufficient funds') ? 'Not enough ETH for the Ethereum network fee.'
       : e.shortMessage || e.message || 'Something went wrong. Nothing was burned.',
       'bad',
@@ -132,6 +133,7 @@ window.addEventListener('eip6963:announceProvider', ((e: CustomEvent<{ info: Omi
   wallets.push({ ...info, provider });
   wallets.sort((a, b) => Number(/shib/i.test(b.rdns + b.name)) - Number(/shib/i.test(a.rdns + a.name)));
   render();
+  renderEvery(wallets);
 }) as EventListener);
 window.dispatchEvent(new Event('eip6963:requestProvider'));
 
@@ -156,3 +158,4 @@ form.addEventListener('click', (e) => {
 });
 
 render();
+initEvery();
