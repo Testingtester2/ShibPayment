@@ -46,6 +46,16 @@
       .features { margin: 24px 0 40px; }
       .steps { margin-bottom: 40px; }
     }
+    .faq { max-width: 820px; margin: 0 auto 48px; }
+    .faq details { border: 1px solid var(--border); border-radius: 18px; background: var(--surface); padding: 0 18px; margin-bottom: 10px; }
+    .faq summary { margin: 0; padding: 16px 0; color: var(--text); font-size: 16px; font-weight: 700; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after { content: '+'; color: var(--orange); font-size: 20px; line-height: 1; }
+    .faq details[open] summary::after { content: '–'; }
+    .faq .a { color: var(--muted); padding-bottom: 16px; line-height: 1.6; }
+    .faq .a p { margin: 0 0 10px; }
+    .faq .a ul { margin: 0 0 10px; padding-left: 20px; }
+    .faq code { overflow-wrap: anywhere; }
     @media (max-width: 860px) { .hero, .dev { grid-template-columns: 1fr; } .features, .steps { grid-template-columns: 1fr; } .hero { padding-top: 32px; } }
   </style>
 </head>
@@ -89,15 +99,15 @@
     <section class="features">
       <div class="glass"><div class="ico">0%</div><h3>No fees. Ever.</h3><p class="muted">ShibPayment takes nothing. Every payment goes from your customer's wallet straight to yours.</p></div>
       <div class="glass"><div class="ico">14</div><h3>Every SHIB network</h3><p class="muted">Shibarium, Ethereum and 11 more networks where SHIB lives. One wallet address receives on all of them. Add a Solana wallet to take SHIB on Solana too.</p></div>
-      <div class="glass"><div class="ico">%</div><h3>Burn, if you want</h3><p class="muted">Pledge a share of every sale to burn. Payments on Ethereum burn it on the spot; for the rest, the <a href="/burn.html">burn helper</a> burns it on Ethereum, where burns count.</p></div>
+      <div class="glass"><div class="ico">%</div><h3>Burn, if you want</h3><p class="muted">Pledge a share of every sale to burn. Payments on Ethereum burn it on the spot. For the rest, the <a href="/burn.html">burn helper</a> works out your share and burns it on Ethereum, where burns count, even straight from 11 other networks.</p></div>
     </section>
 
     <section>
       <h2>How it works</h2>
       <div class="steps">
-        <div class="glass" style="padding:22px"><div class="n gradient-text">STEP 1</div><h3>Paste your wallet</h3><p class="muted">Your ShibWallet address or your .shib name. That's where the money goes.</p></div>
+        <div class="glass" style="padding:22px"><div class="n gradient-text">STEP 1</div><h3>Paste your wallet</h3><p class="muted">Your wallet address (ShibWallet, MetaMask or any wallet you hold the keys to) or your .shib name. That's where the money goes.</p></div>
         <div class="glass" style="padding:22px"><div class="n gradient-text">STEP 2</div><h3>Set a price</h3><p class="muted">In your own money: dollars, euros, naira, rupees and more. We convert it at checkout.</p></div>
-        <div class="glass" style="padding:22px"><div class="n gradient-text">STEP 3</div><h3>Share it</h3><p class="muted">Send the link in a chat, print the QR at your stall, or paste one button into your website.</p></div>
+        <div class="glass" style="padding:22px"><div class="n gradient-text">STEP 3</div><h3>Share it</h3><p class="muted">Send the link in a chat, print the QR at your stall, or paste one button into your website. Save your link: we don't keep a copy.</p></div>
       </div>
     </section>
 
@@ -146,11 +156,68 @@
           <li>Open <b>WooCommerce → Settings → Payments → Pay with SHIB</b>.</li>
           <li>Paste your wallet address or .shib name (and a Solana wallet, to take SHIB on Solana too), set a burn % if you like, tick <b>Turn on</b> and <b>Save</b>.</li>
         </ol>
-        <p class="muted" style="margin-bottom:0">If you set a burn, the settings page keeps a running total of what you've pledged, with a link to the <a href="/burn.html">burn helper</a>.</p>
+        <p class="muted">If you set a burn, the settings page keeps a running total of what you've pledged, with a link to the <a href="/burn.html">burn helper</a>.</p>
+        <p class="note warn" style="margin-bottom:0">The plugin is new: try it on a test store, or with a small order, before you rely on it.</p>
       </div>
     </section>
+
+    <section class="faq" id="faq">
+      <h2>Questions</h2>
+
+      <details><summary>Is it safe? What does my wallet approve?</summary><div class="a">
+        <p>Most payments are a plain send from the buyer's wallet to the shop's wallet. No contract, no approval.</p>
+        <p>The one exception is a shop burn paid on Ethereum. Then the buyer approves <b>only the exact price</b>, for one contract, and it's spent in that same payment. Never an unlimited approval. The contract is open source, <a href="https://etherscan.io/address/0xd25D81E6BF55465BAbe85eA543EB6e8bCbFaba82#code" target="_blank" rel="noopener">verified on Etherscan</a>, has no owner and can't be changed. It can only take tokens from the person paying, and keeps nothing.</p>
+        <p>If MetaMask offers to do both steps in one tap with a "smart account", that's MetaMask's own optional feature, not ours. Saying no is fine: you confirm twice instead.</p>
+      </div></details>
+
+      <details><summary>Do you keep my payment link?</summary><div class="a">
+        <p>No. ShibPayment stores nothing: no account, no database. Your link (or its QR code) <i>is</i> your checkout, so save it. The setup page lets you email it to yourself, share it, or download the QR as a picture to print.</p>
+        <p>Lost it, or want a new price? Make a new one any time on the <a href="/setup.html">setup page</a>, or paste your old link there to change it. Old links keep working.</p>
+      </div></details>
+
+      <details><summary>Does it work on my phone? iPhone?</summary><div class="a">
+        <p>Yes. The checkout opens in any phone browser, iPhone Safari included. There's nothing to install for ShibPayment, but the buyer needs a crypto wallet app to pay from.</p>
+        <ul>
+          <li><b>Any wallet:</b> MetaMask, Trust Wallet, Rainbow and others, by opening the link in the wallet's browser or through WalletConnect.</li>
+          <li><b>ShibWallet:</b> a "Pay with ShibWallet" button opens the payment straight in the app (Android for now).</li>
+          <li><b>Scanning:</b> on a computer, the buyer can scan the QR with their phone wallet.</li>
+        </ul>
+      </div></details>
+
+      <details><summary>Which coins and networks?</summary><div class="a">
+        <p>SHIB, BONE, LEASH and TREAT, on Shibarium, Ethereum and 11 more networks: BNB Chain, Arbitrum One, OP Mainnet, Base, Polygon, Scroll, Linea, Celo, Gnosis, Mantle and Avalanche. TREAT is only on Shibarium and Ethereum. One wallet address receives on all of them.</p>
+        <p>Add a Solana wallet to also take SHIB on Solana. Shops without one don't show Solana.</p>
+        <p>Use your own wallet, not an exchange deposit address: exchanges often don't credit tokens sent on networks like Shibarium.</p>
+      </div></details>
+
+      <details><summary>How do burns work?</summary><div class="a">
+        <p>A shop can pledge a % of each sale to burn. Burned tokens go to <code>0x000000000000000000000000000000000000dEaD</code> on Ethereum, a dead address nobody can spend from. Only Ethereum burns lower the supply, so:</p>
+        <ul>
+          <li><b>Paid on Ethereum:</b> the burn happens automatically, inside the payment.</li>
+          <li><b>Paid on any other network:</b> the shop is paid in full and honours its pledge later with the <a href="/burn.html">burn helper</a>. The buyer pays the same price either way.</li>
+        </ul>
+        <p>The burn helper <b>works out</b> the amount from the sales total you type in. It doesn't track your sales. It burns from your Ethereum wallet, or bridges and burns SHIB, BONE and LEASH straight from the 11 networks on Chainlink's official bridge (CCIP). You confirm each network in your wallet and pay a small bridge fee in that network's coin. Shibarium and Solana aren't on that bridge, so move those tokens to Ethereum first.</p>
+      </div></details>
+
+      <details><summary>What does it cost?</summary><div class="a">
+        <p>ShibPayment takes no fee, ever. The only costs are the normal network fees (gas) your wallet shows, plus Chainlink's bridge fee if you use bridge and burn.</p>
+      </div></details>
+
+      <details><summary>Anything to watch out for?</summary><div class="a">
+        <ul>
+          <li>The burn contract is open source and verified, but hasn't had a professional audit. Start with small amounts.</li>
+          <li>The WooCommerce plugin is new. Try it on a test store first.</li>
+          <li>Payments can't be reversed. Check the address and amount in your wallet before you confirm.</li>
+        </ul>
+      </div></details>
+
+      <details><summary>Who holds the money? Is it open source?</summary><div class="a">
+        <p>Nobody in between. Payments go from the buyer's wallet straight to the shop's wallet. We never hold money or keys.</p>
+        <p>All the code is open source under the MIT licence: <a href="https://github.com/Testingtester2/ShibPayment" target="_blank" rel="noopener">github.com/Testingtester2/ShibPayment</a>.</p>
+      </div></details>
+    </section>
   </div>
-  <footer>ShibPayment is free and open source. Payments are non-custodial: we never hold your money or your keys.</footer>
+  <footer>ShibPayment is free and <a href="https://github.com/Testingtester2/ShibPayment" target="_blank" rel="noopener">open source</a> (MIT). Payments are non-custodial: we never hold your money or your keys. <a href="#faq">Questions</a></footer>
   <script>document.getElementById("origin").textContent = location.origin;</script>
   <script type="module" src="/src/home.ts"></script>
 </body>
