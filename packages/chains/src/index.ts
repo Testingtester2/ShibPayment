@@ -77,7 +77,7 @@ export const EVM_CHAINS: EvmChain[] = [
     key: 'shibarium',
     chainId: 109,
     name: 'Shibarium',
-    rpcUrls: ['https://rpc.shibarium.shib.io', 'https://www.shibrpc.com', 'https://shibarium.rpc.thirdweb.com'],
+    rpcUrls: ['https://rpc.shibarium.shib.io', 'https://shibarium.rpc.thirdweb.com'],
     explorerUrl: 'https://shibariumscan.io',
     nativeSymbol: 'BONE',
     tokens: [

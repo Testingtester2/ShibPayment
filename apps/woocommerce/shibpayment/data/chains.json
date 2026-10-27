@@ -24,7 +24,6 @@
       "name": "Shibarium",
       "rpcUrls": [
         "https://rpc.shibarium.shib.io",
-        "https://www.shibrpc.com",
         "https://shibarium.rpc.thirdweb.com"
       ],
       "explorerUrl": "https://shibariumscan.io",
