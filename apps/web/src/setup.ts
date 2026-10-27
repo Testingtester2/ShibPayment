@@ -11,6 +11,7 @@ const form = document.getElementById('form') as HTMLFormElement;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
 
+let current: { link: string; label?: string; amount: string; currency: string; qr: ReturnType<typeof qrcode> } | null = null;
 let resolved: { input: string; address: `0x${string}` | null } = { input: '', address: null };
 let resolving = 0;
 
@@ -143,6 +144,13 @@ async function update() {
   qr.addData(link);
   qr.make();
   $('qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+  current = { link, label: cfg.label, amount: cfg.amount, currency: cfg.currency, qr };
+  // This page's own address now carries the details, so a bookmark brings them back.
+  history.replaceState(null, '', `${location.pathname}${new URL(link).search}`);
+  const name = cfg.label ?? 'my shop';
+  const editLink = `${location.origin}/setup.html${new URL(link).search}`;
+  $<HTMLAnchorElement>('emailLink').href = `mailto:?subject=${encodeURIComponent(`ShibPayment link for ${name}`)}&body=${encodeURIComponent(
+    `My payment link (buyers open this to pay):\n${link}\n\nTo change it later, open:\n${editLink}\n\nShibPayment doesn't keep a copy, so keep this email.`)}`;
 
   const attrs: [string, string | undefined][] = [
     ['to', cfg.to], ['sol', cfg.sol], ['amount', cfg.amount], ['currency', cfg.currency], ['burn', bps ? String(bps / 100) : undefined],
@@ -158,6 +166,78 @@ async function update() {
   $('empty').hidden = true;
   $('result').hidden = false;
 }
+
+/** Fills the form from a payment link's details (?to=…&amount=…), as typed, so mistakes still show. */
+function fill(q: URLSearchParams): boolean {
+  if (!q.get('to')) return false;
+  const set = (name: string, v: string | null) => { field(name).value = v ?? ''; };
+  set('to', q.get('to'));
+  set('sol', q.get('sol'));
+  set('amount', q.get('amount'));
+  set('label', q.get('label'));
+  set('order', q.get('order'));
+  set('returnUrl', q.get('return'));
+  set('burn', q.get('burn') ?? '0');
+  field('burnRange').value = String(Math.min(10, Number(q.get('burn')) || 0));
+  const currency = (q.get('currency') ?? 'USD').toUpperCase();
+  const sel = form.elements.namedItem('currency') as HTMLSelectElement;
+  if ([...sel.options].some((o) => o.value === currency)) sel.value = currency;
+  if (q.get('order') || q.get('return')) (form.querySelector('details') as HTMLDetailsElement).open = true;
+  return true;
+}
+
+$('oldLink').addEventListener('input', () => {
+  const v = $<HTMLInputElement>('oldLink').value.trim();
+  if (!v) return note($('oldNote'), 'Your details fill in below. Change what you need, then save the new link.');
+  let q: URLSearchParams;
+  try {
+    q = new URL(v).searchParams;
+  } catch {
+    return note($('oldNote'), 'Paste the whole link, starting with https://', 'bad');
+  }
+  if (!fill(q)) return note($('oldNote'), "That doesn't look like a ShibPayment link. It should contain ?to=", 'bad');
+  note($('oldNote'), 'Filled in below. Change what you need, then save your new link. The old link keeps working too.', 'ok');
+  void update();
+});
+
+$('shareLink').hidden = typeof navigator.share !== 'function';
+$('shareLink').addEventListener('click', () => {
+  if (!current) return;
+  navigator.share({ title: current.label ?? 'Payment link', text: `Pay ${current.label ?? 'me'} with SHIB`, url: current.link }).catch(() => {});
+});
+
+/** A printable card: shop name, QR code, price. */
+$('downloadQr').addEventListener('click', () => {
+  if (!current) return;
+  const { qr } = current;
+  const n = qr.getModuleCount();
+  const W = 900, H = 1100, size = 720, cell = Math.floor(size / n), qrPx = cell * n, x0 = (W - qrPx) / 2, y0 = 200;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#fff';
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = '#111';
+  g.textAlign = 'center';
+  g.font = '700 54px Inter, system-ui, sans-serif';
+  g.fillText(current.label ?? 'Pay with SHIB', W / 2, 120, W - 80);
+  for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) if (qr.isDark(r, col)) g.fillRect(x0 + col * cell, y0 + r * cell, cell, cell);
+  const coin = current.currency === 'SHIB' || current.currency === 'BONE';
+  g.font = '700 44px Inter, system-ui, sans-serif';
+  g.fillText(`${groupDigits(current.amount)} ${current.currency}`, W / 2, y0 + qrPx + 90, W - 80);
+  g.font = '500 30px Inter, system-ui, sans-serif';
+  g.fillStyle = '#555';
+  g.fillText(coin ? 'Scan to pay' : 'Scan to pay with SHIB, BONE, LEASH or TREAT', W / 2, y0 + qrPx + 145, W - 80);
+  const a = document.createElement('a');
+  a.href = c.toDataURL('image/png');
+  a.download = `${(current.label ?? 'shibpayment').replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '') || 'shibpayment'}-qr.png`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+});
+
+if (fill(new URLSearchParams(location.search))) void update();
 
 let debounce: number | undefined;
 form.addEventListener('input', (e) => {

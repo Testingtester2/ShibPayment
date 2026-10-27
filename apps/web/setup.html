@@ -20,6 +20,12 @@
     .qrwrap { display: flex; gap: 16px; align-items: center; }
     .qrwrap .qr { width: 132px; height: 132px; padding: 8px; background: #fff; border-radius: 14px; flex: none; }
     .qrwrap .qr svg { width: 100%; height: 100%; display: block; }
+    .editold { margin-top: 14px; max-width: 640px; }
+    .editold summary { cursor: pointer; color: var(--orange); font-weight: 600; font-size: 14px; }
+    .save { margin-top: 18px; padding: 16px; border-radius: 18px; border: 1px solid rgba(255,184,0,.45); background: rgba(255,184,0,.07); }
+    .save b { color: var(--amber); font-size: 15px; }
+    .save p { margin: 6px 0 12px; font-size: 14px; color: var(--muted); }
+    .savebtns { display: flex; flex-wrap: wrap; gap: 8px; }
     .empty { padding: 40px 16px; text-align: center; color: var(--faint); border: 1px dashed var(--border); border-radius: 20px; }
     @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
     @media (max-width: 600px) {
@@ -27,6 +33,7 @@
       .qrwrap { flex-direction: column; text-align: center; }
       .qrwrap .qr { width: 180px; height: 180px; }
       .burnrow { grid-template-columns: 1fr 88px; }
+      .savebtns .btn { flex: 1 1 100%; height: 44px; font-size: 14px; }
     }
   </style>
 </head>
@@ -37,7 +44,14 @@
       <a class="faint navlink" style="font-size:14px" href="/burn.html">Burn helper</a>
     </nav>
     <h2 style="margin-top:16px">Create your payment link</h2>
-    <p class="muted" style="margin:0">Fill this in once. Nothing is stored on our side: everything lives in the link.</p>
+    <p class="muted" style="margin:0">Fill this in once. Nothing is stored on our side: everything lives in the link, so save it when you're done.</p>
+    <details class="editold" id="editOld">
+      <summary>Already have a link? Change it here</summary>
+      <label class="field" style="margin:12px 0 0"><span>Paste your payment link</span>
+        <input id="oldLink" placeholder="https://shibpayments.shibfun.app/pay.html?to=…" autocomplete="off" spellcheck="false" />
+        <div class="note" id="oldNote">Your details fill in below. Change what you need, then save the new link.</div>
+      </label>
+    </details>
 
     <div class="grid">
       <form class="card" id="form" novalidate>
@@ -100,6 +114,16 @@
           <div class="qrwrap" style="margin-top:14px"><div class="qr" id="qr"></div>
             <div><div class="muted" style="font-size:14px">Print it at your stall or send it in a chat.</div>
             <a class="btn small ghost" id="openLink" target="_blank" rel="noopener" style="margin-top:10px">Open payment page</a></div></div>
+          <div class="save" id="save">
+            <b>Save your link. We don't keep a copy.</b>
+            <p>ShibPayment stores nothing, so this link and QR code are your checkout. Keep them somewhere safe. Lost them? Make a new one here any time, free.</p>
+            <div class="savebtns">
+              <button class="btn small" type="button" id="shareLink" hidden>Share</button>
+              <a class="btn small" id="emailLink">Email it to me</a>
+              <button class="btn small ghost" type="button" id="downloadQr">Download QR code</button>
+            </div>
+            <p class="note" style="margin-bottom:0">Tip: bookmark this page now. It remembers these details, so you can change your link later.</p>
+          </div>
           <h3>For your website</h3>
           <textarea id="snippet" rows="10" readonly></textarea>
           <button class="btn small ghost" data-copy="snippet" type="button" style="margin-top:8px">Copy code</button>
